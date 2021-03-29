@@ -1,3 +1,8 @@
+Dataset
+Dataset/
+report
+report/ 
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
