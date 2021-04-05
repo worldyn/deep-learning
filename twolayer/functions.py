@@ -259,25 +259,34 @@ class Net2:
     def compute_gradients(self, X, Y, lam):
         N = X.shape[1]
         K = Y.shape[0]
+        m = self.b1.shape[0]
         H,P = self.forward(X) # (K, N)
         # out
         G = -(Y - P) # (K, N)
         # hid
         dLdW2 = 1. / N * G @ H.T
         dLdb2 = 1. / N * np.matmul(G,np.ones(N))
-        # activ in
-        G = self.W2 @ G
-        G = G #* Ind(H > 0) 
-        # input layer
+        dLdb2 = 1. / N * G @ np.ones(N)
 
+        # activ in
+        G = self.W2.T @ G
+        G = G * np.piecewise(H, [H <= 0, H > 0], [0,1])  #* Ind(H > 0) 
+        # input layer
+        dLdW1 = 1. / N * G @ X.T
+        dLdb1 = 1. / N * G @ np.ones(N)
         
+        # gradients
+        grad_W2 = dLdW2 + 2.*lam*self.W2
+        grad_b2 = np.reshape(dLdb2, (K,1))
+        grad_W1 = dLdW1 + 2.*lam*self.W1
+        grad_b1 = np.reshape(dLdb1, (m,1))
         '''
         dLdW = 1. / N * G @ X.T
         dLdb = 1. / N * np.matmul(G,np.ones(N))
         grad_W = dLdW + 2.*lam*self.W
         grad_b = np.reshape(dLdb, (K,1))
         '''
-        return grad_W, grad_b
+        return grad_W1, grad_b1, grad_W2, grad_b2
     
     # X: cols are data points
     def training(self, X,Y,X_val, Y_val, eta=0.001, lam=0, n_batch=100, n_epochs=20):
@@ -299,17 +308,20 @@ class Net2:
                 j_end = (j+1)*n_batch # exclusive end
                 Xbatch = Xtrain[:, j_start:j_end]
                 Ybatch = Ytrain[:, j_start:j_end]
-                grad_W, grad_b = self.compute_gradients(Xbatch, Ybatch, lam)
+                grad_W1, grad_b1, grad_W2, grad_b2 = \
+                        self.compute_gradients(Xbatch, Ybatch, lam)
                 # update params
-                self.W = self.W - eta * grad_W
-                self.b = self.b - eta * grad_b
+                self.W2 = self.W2 - eta * grad_W2
+                self.b2 = self.b2 - eta * grad_b2
+                self.W1 = self.W1 - eta * grad_W1
+                self.b1 = self.b1 - eta * grad_b1
             # save costs
             costtrain = self.compute_cost(X, Y, lam)
             costs_train.append(costtrain)
             costval = self.compute_cost(X_val, Y_val, lam)
             costs_val.append(costval)
-            if epoch % 10 == 0:
-                print("Epoch {} ; traincost: {} ; valcost: {}".format(epoch, costtrain, costval))
+            #if epoch % 10 == 0:
+            print("Epoch {} ; traincost: {} ; valcost: {}".format(epoch, costtrain, costval))
         return costs_train, costs_val
 
     def compare_grad(self,X,Y, lam):
@@ -376,22 +388,21 @@ def main():
     net = Net2(d,m,K)
 
     # 4.evaluate
-    P1 = net.forward(train_data[:,0:15]) # K x n
+    #P1 = net.forward(train_data[:,0:15]) # K x n
     # 5. compute cost
-    lam = 0.01
-    cost1 = net.compute_cost(train_data, train_onehot, lam)
-    print("COST1",cost1)
-    acc1 = net.compute_accuracy(train_data, train_labels)
-    print("ACC1",cost1)
+    #lam = 0.01
+    #cost1 = net.compute_cost(train_data, train_onehot, lam)
+    #print("COST1",cost1)
+    #acc1 = net.compute_accuracy(train_data, train_labels)
+    #print("ACC1",cost1)
     #grad_W1, grad_b1 = net.compute_gradients(train_data, train_onehot, lam)
     #errW1,errb1 = net.compare_grad(train_data,train_onehot, lam)
 
     # TRAINING
-    '''
-    eta = 0.1
-    lam=1
-    n_batch=50
-    n_epochs=50
+    eta = 0.01
+    lam=0
+    n_batch=100
+    n_epochs=15
     costs_train, costs_val = net.training(
         train_data,
         train_onehot,
@@ -406,6 +417,7 @@ def main():
     print("\n")
     print("PARAMS: eta={}, lam={}, n_batch={}, n_epochs={}".format(eta,lam,n_batch,n_epochs))
     print("TEST ACCURACY: ", test_acc)
+    '''
 
     # plot the validation and train errs
     fig = plt.figure()
