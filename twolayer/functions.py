@@ -289,16 +289,23 @@ class Net2:
         return grad_W1, grad_b1, grad_W2, grad_b2
     
     # X: cols are data points
-    def training(self, X,Y,X_val, Y_val, eta=0.001, lam=0, n_batch=100, n_epochs=20):
+    def training(self, X,Y,X_val, Y_val, lam=0, n_batch=100, n_epochs=20,
+                eta_min=1e-5, eta_max=1e-1,n_s=500):
         print("training started...")
         costs_train = []
         costs_val = []
         N = X.shape[1]
+
+        eta = eta_min
+        t = 1
         
         for epoch in range(n_epochs):
-            eta = eta * 1/(1+ 0.09*epoch) 
-            if eta < 0.001:
-                eta = 0.001
+            #eta = eta * 1/(1+ 0.09*epoch) 
+            #if eta < 0.001:
+            #    eta = 0.001
+            # cyclic lr
+            # t=1 to t=2*n_s
+            
             # shuffle
             permidx = np.random.permutation(N)
             Xtrain = X[:,permidx]   
@@ -310,6 +317,15 @@ class Net2:
                 Ybatch = Ytrain[:, j_start:j_end]
                 grad_W1, grad_b1, grad_W2, grad_b2 = \
                         self.compute_gradients(Xbatch, Ybatch, lam)
+
+                if t <= n_s:
+                    eta = eta_min + t / n_s * (eta_max - eta_min)
+                if n_s < t and t <= 2*n_s:
+                    eta = eta_max - (t-n_s)/n_s * (eta_max-eta_min)
+                    if t == 2*n_s:
+                        t = 1
+                t+=1
+
                 # update params
                 self.W2 = self.W2 - eta * grad_W2
                 self.b2 = self.b2 - eta * grad_b2
@@ -320,8 +336,8 @@ class Net2:
             costs_train.append(costtrain)
             costval = self.compute_cost(X_val, Y_val, lam)
             costs_val.append(costval)
-            #if epoch % 10 == 0:
-            print("Epoch {} ; traincost: {} ; valcost: {}".format(epoch, costtrain, costval))
+            if epoch % 5 == 0:
+                print("Epoch {} ; traincost: {} ; valcost: {}".format(epoch, costtrain, costval))
         return costs_train, costs_val
 
     def compare_grad(self,X,Y, lam):
@@ -399,23 +415,30 @@ def main():
     #errW1,errb1 = net.compare_grad(train_data,train_onehot, lam)
 
     # TRAINING
-    eta = 0.01
-    lam=0
+    eta_min = 1e-5
+    #eta = 0.01
+    eta_max = 1e-1
+    n_s = 800
+    lam=0.01
     n_batch=100
+    #n_batch=50
     n_epochs=15
     costs_train, costs_val = net.training(
         train_data,
         train_onehot,
         val_data, 
         val_onehot,
-        eta=eta, 
+        #eta=eta, 
         lam=lam, 
         n_batch=n_batch, 
-        n_epochs=n_epochs
+        n_epochs=n_epochs,
+        eta_min=eta_min,
+        eta_max=eta_max,
+        n_s = n_s
     )
     test_acc = net.compute_accuracy(test_data, test_labels)
     print("\n")
-    print("PARAMS: eta={}, lam={}, n_batch={}, n_epochs={}".format(eta,lam,n_batch,n_epochs))
+    print("PARAMS: eta_min={}, eta_max={}, lam={}, n_batch={}, n_epochs={}".format(eta_min,eta_max,lam,n_batch,n_epochs))
     print("TEST ACCURACY: ", test_acc)
     '''
 
