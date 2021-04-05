@@ -399,47 +399,69 @@ def main():
     val_data = val_data.T
     test_data = test_data.T
 
-    # 3.init model
     np.random.seed(400)
-    net = Net2(d,m,K)
-
-    # 4.evaluate
-    #P1 = net.forward(train_data[:,0:15]) # K x n
-    # 5. compute cost
-    #lam = 0.01
-    #cost1 = net.compute_cost(train_data, train_onehot, lam)
-    #print("COST1",cost1)
-    #acc1 = net.compute_accuracy(train_data, train_labels)
-    #print("ACC1",cost1)
-    #grad_W1, grad_b1 = net.compute_gradients(train_data, train_onehot, lam)
-    #errW1,errb1 = net.compare_grad(train_data,train_onehot, lam)
-
+    
     # TRAINING
-    eta_min = 1e-5
-    #eta = 0.01
-    eta_max = 1e-1
-    n_s = 800
-    lam=0.01
+    N = train_data.shape[0]
     n_batch=100
     #n_batch=50
     n_epochs=15
-    costs_train, costs_val = net.training(
-        train_data,
-        train_onehot,
-        val_data, 
-        val_onehot,
-        #eta=eta, 
-        lam=lam, 
-        n_batch=n_batch, 
-        n_epochs=n_epochs,
-        eta_min=eta_min,
-        eta_max=eta_max,
-        n_s = n_s
-    )
-    test_acc = net.compute_accuracy(test_data, test_labels)
+    #lam=0.01
+
+    l_min = -7
+    l_max = -4
+    n_lambdas = 8
+    lambdas = np.power(10,np.random.uniform(low=l_min,high=l_max,size=(n_lambdas,)))
+
+    n_s = 2*np.floor(N / n_batch)
+    eta_min = 1e-5
+    eta_max = 1e-1
+
+    nets = []
+    val_cost = 10000
+    best_lam = lambdas[0]
+    best_net = None
+
+    
+    
+    for lam in lambdas:
+        print("Trying lambda: ", lam)
+        net = Net2(d,m,K)
+        costs_train, costs_val = net.training(
+            train_data,
+            train_onehot,
+            val_data, 
+            val_onehot,
+            #eta=eta, 
+            lam=lam, 
+            n_batch=n_batch, 
+            n_epochs=n_epochs,
+            eta_min=eta_min,
+            eta_max=eta_max,
+            n_s = n_s
+        )
+        nets.append([lam, net, costs_train, costs_val])
+        last_valcost = costs_val[-1]
+        print("DONE lam {}, last val {}".format(lam, last_valcost))
+
+        if  last_valcost < val_cost:
+            val_cost = last_valcost
+            best_net = net
+            best_lam = lam
+
+        with open("lambdas.txt","a") as f:
+            f.write("lam {}, val_cost {}\n".format(lam, costs_val[-1]))
+            
+
+    test_acc = best_net.compute_accuracy(test_data, test_labels)
+    with open("lambdas.txt","a") as f:
+        f.write("test acc on best lam {}: {}\n".format(best_lam, test_acc))
+
     print("\n")
-    print("PARAMS: eta_min={}, eta_max={}, lam={}, n_batch={}, n_epochs={}".format(eta_min,eta_max,lam,n_batch,n_epochs))
+    print("PARAMS: eta_min={}, eta_max={}, n_batch={}, n_epochs={}".format(eta_min,eta_max,n_batch,n_epochs))
     print("TEST ACCURACY: ", test_acc)
+    
+    # TRAINING AND TEST DONE
     '''
 
     # plot the validation and train errs
