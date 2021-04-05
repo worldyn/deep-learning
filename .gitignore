@@ -2,6 +2,7 @@ Dataset
 Dataset/
 report
 report/ 
+*.swp
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
