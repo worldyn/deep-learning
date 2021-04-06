@@ -118,7 +118,7 @@ def unpickle(file):
     return data
 
 
-def load_cifar_10_data(data_dir, negatives=False):
+def load_cifar_10_data(data_dir, N_val, negatives=False):
     """
     Return train_data, train_filenames, train_labels, test_data, test_filenames, test_labels
     """
@@ -137,12 +137,14 @@ def load_cifar_10_data(data_dir, negatives=False):
     cifar_train_filenames = []
     cifar_train_labels = []
 
-    cifar_train_data_dict = unpickle(data_dir + "/data_batch_1")
-    cifar_train_data = cifar_train_data_dict[b'data']
-    #else:
-    #    cifar_train_data = np.vstack((cifar_train_data, cifar_train_data_dict[b'data']))
-    cifar_train_filenames += cifar_train_data_dict[b'filenames']
-    cifar_train_labels += cifar_train_data_dict[b'labels']
+    for i in range(1, 6):
+        cifar_train_data_dict = unpickle(data_dir + "/data_batch_{}".format(i))
+        if i == 1:
+            cifar_train_data = cifar_train_data_dict[b'data']
+        else:
+            cifar_train_data = np.vstack((cifar_train_data, cifar_train_data_dict[b'data']))
+        cifar_train_filenames += cifar_train_data_dict[b'filenames']
+        cifar_train_labels += cifar_train_data_dict[b'labels']
 
     cifar_train_data = cifar_train_data.reshape((len(cifar_train_data), 3, 32, 32))
     if negatives:
@@ -150,27 +152,20 @@ def load_cifar_10_data(data_dir, negatives=False):
     else:
         cifar_train_data = np.rollaxis(cifar_train_data, 1, 4)
     cifar_train_filenames = np.array(cifar_train_filenames)
-    cifar_train_labels = np.array(cifar_train_labels)
+    cifar_train_labels = np.array(cifar_train_labels)     
 
-    # validation
-    cifar_val_data = None
-    cifar_val_filenames = []
-    cifar_val_labels = []
 
-    cifar_val_data_dict = unpickle(data_dir + "/data_batch_2")
-    cifar_val_data = cifar_val_data_dict[b'data']
-    #else:
-    #    cifar_train_data = np.vstack((cifar_train_data, cifar_train_data_dict[b'data']))
-    cifar_val_filenames += cifar_val_data_dict[b'filenames']
-    cifar_val_labels += cifar_val_data_dict[b'labels']
+    N_train = cifar_train_data.shape[0] - N_val
 
-    cifar_val_data = cifar_val_data.reshape((len(cifar_val_data), 3, 32, 32))
-    if negatives:
-        cifar_val_data = cifar_val_data.transpose(0, 2, 3, 1).astype(np.float32)
-    else:
-        cifar_val_data = np.rollaxis(cifar_val_data, 1, 4)
-    cifar_val_filenames = np.array(cifar_val_filenames)
-    cifar_val_labels = np.array(cifar_val_labels)
+
+    # fix validation and train
+    cifar_val_data = cifar_train_data[N_train:]
+    cifar_val_filenames = cifar_train_filenames[N_train:]
+    cifar_val_labels = cifar_train_labels[N_train:]
+    
+    cifar_train_data = cifar_train_data[:N_train]
+    cifar_train_filenames = cifar_train_filenames[:N_train]
+    cifar_train_labels = cifar_train_labels[:N_train]
 
     # test data
     # cifar_test_data_dict
@@ -191,23 +186,27 @@ def load_cifar_10_data(data_dir, negatives=False):
         cifar_test_data = np.rollaxis(cifar_test_data, 1, 4)
     cifar_test_filenames = np.array(cifar_test_filenames)
     cifar_test_labels = np.array(cifar_test_labels)
+    N_test = cifar_test_data.shape[0]
+
+    print("N_train: ", N_train)
+    print("N_val: ", N_val)
+    print("N_test: ", N_test)
 
     # fix shapes and values of data
-    N = 10000
-    cifar_train_data = np.reshape(cifar_train_data, (N, 32*32*3))
+    cifar_train_data = np.reshape(cifar_train_data, (N_train, 32*32*3))
     cifar_train_data = cifar_train_data / 255.
-    cifar_val_data = np.reshape(cifar_val_data, (N, 32*32*3))
+    cifar_val_data = np.reshape(cifar_val_data, (N_val, 32*32*3))
     cifar_val_data = cifar_val_data / 255.
-    cifar_test_data = np.reshape(cifar_test_data, (N, 32*32*3))
+    cifar_test_data = np.reshape(cifar_test_data, (N_test, 32*32*3))
     cifar_test_data = cifar_test_data / 255.
 
     # one-hot encodings
-    train_onehot = np.zeros((N, 10))
-    train_onehot[np.arange(N), cifar_train_labels] = 1
-    val_onehot = np.zeros((N, 10))
-    val_onehot[np.arange(N), cifar_val_labels] = 1
-    test_onehot = np.zeros((N, 10))
-    test_onehot[np.arange(N), cifar_test_labels] = 1
+    train_onehot = np.zeros((N_train, 10))
+    train_onehot[np.arange(N_train), cifar_train_labels] = 1
+    val_onehot = np.zeros((N_val, 10))
+    val_onehot[np.arange(N_val), cifar_val_labels] = 1
+    test_onehot = np.zeros((N_test, 10))
+    test_onehot[np.arange(N_test), cifar_test_labels] = 1
 
     return cifar_train_data, cifar_train_filenames, cifar_train_labels, train_onehot.T, \
         cifar_val_data, cifar_val_filenames, cifar_val_labels, val_onehot.T, \
@@ -290,7 +289,7 @@ class Net2:
     
     # X: cols are data points
     def training(self, X,Y,X_val, Y_val, lam=0, n_batch=100, n_epochs=20,
-                eta_min=1e-5, eta_max=1e-1,n_s=500):
+            eta_min=1e-5, eta_max=1e-1,n_s=500, print_epoch=5):
         print("training started...")
         costs_train = []
         costs_val = []
@@ -336,7 +335,7 @@ class Net2:
             costs_train.append(costtrain)
             costval = self.compute_cost(X_val, Y_val, lam)
             costs_val.append(costval)
-            if epoch % 5 == 0:
+            if epoch % print_epoch == 0:
                 print("Epoch {} ; traincost: {} ; valcost: {}".format(epoch, costtrain, costval))
         return costs_train, costs_val
 
@@ -360,10 +359,12 @@ class Net2:
 def main():
     cifar_10_dir = 'Dataset/cifar-10-batches-py'
 
+    N_val = 1000 
+
     train_data, train_filenames, train_labels, train_onehot,\
     val_data, val_filenames, val_labels, val_onehot,\
     test_data, test_filenames, test_labels, label_names, test_onehot = \
-        load_cifar_10_data(cifar_10_dir)
+        load_cifar_10_data(cifar_10_dir, N_val)
 
     print("Train data: ", train_data.shape)
     print("Train filenames: ", train_filenames.shape)
@@ -405,13 +406,15 @@ def main():
     N = train_data.shape[0]
     n_batch=100
     #n_batch=50
-    n_epochs=15
+    n_epochs=8
     #lam=0.01
 
     l_min = -7
-    l_max = -4
+    l_max = -5
     n_lambdas = 8
     lambdas = np.power(10,np.random.uniform(low=l_min,high=l_max,size=(n_lambdas,)))
+    #lambdas = [1.117361109025311e-05]
+    lambdas = [1.0e-03]
 
     n_s = 2*np.floor(N / n_batch)
     eta_min = 1e-5
@@ -438,7 +441,8 @@ def main():
             n_epochs=n_epochs,
             eta_min=eta_min,
             eta_max=eta_max,
-            n_s = n_s
+            n_s = n_s,
+            print_epoch = 1,
         )
         nets.append([lam, net, costs_train, costs_val])
         last_valcost = costs_val[-1]
@@ -451,7 +455,18 @@ def main():
 
         with open("lambdas.txt","a") as f:
             f.write("lam {}, val_cost {}\n".format(lam, costs_val[-1]))
-            
+
+        # plot the validation and train errs
+        fig = plt.figure()
+        fig.suptitle(
+            'train (red) and val (green) cross entropy cost, \nlambda={}'.format(lam),
+            fontsize=16
+        )
+        plt.xlabel('epoch', fontsize=14)
+        plt.ylabel('cost', fontsize=14)
+        plt.plot(costs_train, 'r')
+        plt.plot(costs_val, 'g')
+        plt.show()
 
     test_acc = best_net.compute_accuracy(test_data, test_labels)
     with open("lambdas.txt","a") as f:
@@ -462,19 +477,9 @@ def main():
     print("TEST ACCURACY: ", test_acc)
     
     # TRAINING AND TEST DONE
+
+    
     '''
-
-    # plot the validation and train errs
-    fig = plt.figure()
-    fig.suptitle(
-        'train (red) and val (green) cross entropy cost, \ntest acc={}'.format(test_acc),
-        fontsize=18
-    )
-    plt.xlabel('epoch', fontsize=14)
-    plt.ylabel('cost', fontsize=14)
-    plt.plot(costs_train, 'r')
-    plt.plot(costs_val, 'g')
-
     # plot visualization of weights
     fig2 = plt.figure()
     fig2.suptitle(
