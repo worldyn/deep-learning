@@ -359,7 +359,7 @@ class Net2:
 def main():
     cifar_10_dir = 'Dataset/cifar-10-batches-py'
 
-    N_val = 1000 
+    N_val = 1000
 
     train_data, train_filenames, train_labels, train_onehot,\
     val_data, val_filenames, val_labels, val_onehot,\
@@ -380,10 +380,6 @@ def main():
     print("test onehot: ", test_onehot.shape)
     print("Label names: ", label_names.shape)
 
-    K = 10
-    m = 50
-    d = 3072
-    N = 10000 # for train,val,test
 
     # pre-process
     mean_train = np.mean(train_data)
@@ -414,18 +410,24 @@ def main():
     n_lambdas = 8
     lambdas = np.power(10,np.random.uniform(low=l_min,high=l_max,size=(n_lambdas,)))
     #lambdas = [1.117361109025311e-05]
-    lambdas = [1.0e-03]
+    #lambdas = [1.0e-03]
+    lambdas = [0.0008]
 
     n_s = 2*np.floor(N / n_batch)
+    print("train N: ",N)
+    print("iterations per cycle, n_s: ", n_s) # always 2 epochs per cycle
+    #n_s = 800
     eta_min = 1e-5
     eta_max = 1e-1
+
+    K = 10 # classes
+    m = 90 # hid
+    d = 3072 # input dim
 
     nets = []
     val_cost = 10000
     best_lam = lambdas[0]
     best_net = None
-
-    
     
     for lam in lambdas:
         print("Trying lambda: ", lam)
@@ -442,7 +444,7 @@ def main():
             eta_min=eta_min,
             eta_max=eta_max,
             n_s = n_s,
-            print_epoch = 1,
+            print_epoch = 2,
         )
         nets.append([lam, net, costs_train, costs_val])
         last_valcost = costs_val[-1]
@@ -474,7 +476,7 @@ def main():
 
     print("\n")
     print("PARAMS: eta_min={}, eta_max={}, n_batch={}, n_epochs={}".format(eta_min,eta_max,n_batch,n_epochs))
-    print("TEST ACCURACY: ", test_acc)
+    print("best TEST ACCURACY for lambda {}: {}".format(best_lam,test_acc))
     
     # TRAINING AND TEST DONE
 

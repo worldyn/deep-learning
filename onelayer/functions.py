@@ -232,7 +232,8 @@ class Net:
     def compute_cost(self,X, Y, lam):
         P = self.forward(X) # (K,n)
         N = X.shape[1]
-        l = -Y*np.log(P) # categorical cross-entropy
+        l = -Y * np.log(P) # categorical cross-entropy
+        #l = - np.log(Y.T @ P) # categorical cross-entropy
         return 1. / N * np.sum(l) + lam * np.sum(self.W**2)
 
     def compute_accuracy(self, X, y):
@@ -359,7 +360,7 @@ def main():
     eta = 0.1
     lam=1
     n_batch=50
-    n_epochs=50
+    n_epochs=40
     costs_train, costs_val = net.training(
         train_data,
         train_onehot,
