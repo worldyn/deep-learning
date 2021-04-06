@@ -2,6 +2,8 @@ import numpy as np
 import pickle
 import matplotlib.pyplot as plt
 import scipy.io as sio
+from scipy.stats import mode
+from copy import deepcopy
 
 def softmax(x):
     """ Standard definition of the softmax function """
@@ -355,6 +357,22 @@ class Net2:
         return errW, errb
 
 
+def compute_accuracy_ensemble(nets, X, y, K):
+        N = X.shape[1]
+        n_nets = len(nets)
+        outs = np.zeros((n_nets,K,N))
+        votes = np.zeros((n_nets,N))
+        for i in range(n_nets):
+            net = nets[i]
+            _,outs[i] = net.forward(X) #(n_nets,K,N)
+            votes[i] = np.argmax(outs[i].T, axis=1) # (n_nets,N)
+        major = mode(votes, axis=1)[0]
+        print("Majority shape",major.shape)
+        #_,P = self.forward(X) # (K,N)
+        #print("shape out",P.T.shape)
+        #k = np.argmax(P.T, axis=1)
+        return np.sum(major == y) / N
+
 
 def main():
     cifar_10_dir = 'Dataset/cifar-10-batches-py'
@@ -421,7 +439,7 @@ def main():
     eta_max = 1e-1
 
     K = 10 # classes
-    m = 90 # hid
+    m = 65 # hid
     d = 3072 # input dim
 
     nets = []
@@ -431,22 +449,25 @@ def main():
     
     for lam in lambdas:
         print("Trying lambda: ", lam)
-        net = Net2(d,m,K)
-        costs_train, costs_val = net.training(
-            train_data,
-            train_onehot,
-            val_data, 
-            val_onehot,
-            #eta=eta, 
-            lam=lam, 
-            n_batch=n_batch, 
-            n_epochs=n_epochs,
-            eta_min=eta_min,
-            eta_max=eta_max,
-            n_s = n_s,
-            print_epoch = 2,
-        )
-        nets.append([lam, net, costs_train, costs_val])
+        for _ in range(4): # save each network for 4 cycles
+            net = Net2(d,m,K)
+            costs_train, costs_val = net.training(
+                train_data,
+                train_onehot,
+                val_data, 
+                val_onehot,
+                #eta=eta, 
+                lam=lam, 
+                n_batch=n_batch, 
+                n_epochs=2,
+                eta_min=eta_min,
+                eta_max=eta_max,
+                n_s = n_s,
+                print_epoch = 2,
+            )
+            nets.append(deepcopy(net))
+
+        '''
         last_valcost = costs_val[-1]
         print("DONE lam {}, last val {}".format(lam, last_valcost))
 
@@ -469,14 +490,18 @@ def main():
         plt.plot(costs_train, 'r')
         plt.plot(costs_val, 'g')
         plt.show()
+        '''
 
-    test_acc = best_net.compute_accuracy(test_data, test_labels)
-    with open("lambdas.txt","a") as f:
-        f.write("test acc on best lam {}: {}\n".format(best_lam, test_acc))
+    # for each network
+    test_acc = compute_accuracy_ensemble(nets,test_data, test_labels,K)
+
+    #test_acc = best_net.compute_accuracy(test_data, test_labels)
+    #with open("lambdas.txt","a") as f:
+    #    f.write("test acc on best lam {}: {}\n".format(best_lam, test_acc))
 
     print("\n")
-    print("PARAMS: eta_min={}, eta_max={}, n_batch={}, n_epochs={}".format(eta_min,eta_max,n_batch,n_epochs))
-    print("best TEST ACCURACY for lambda {}: {}".format(best_lam,test_acc))
+    #print("PARAMS: eta_min={}, eta_max={}, n_batch={}, n_epochs={}".format(eta_min,eta_max,n_batch,n_epochs))
+    print("TEST ACCURACY with ensembles {}".format(test_acc))
     
     # TRAINING AND TEST DONE
 
