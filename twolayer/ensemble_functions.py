@@ -362,15 +362,19 @@ def compute_accuracy_ensemble(nets, X, y, K):
         n_nets = len(nets)
         outs = np.zeros((n_nets,K,N))
         votes = np.zeros((n_nets,N))
+        print("label shape y ", y.shape)
+        
         for i in range(n_nets):
             net = nets[i]
             _,outs[i] = net.forward(X) #(n_nets,K,N)
             votes[i] = np.argmax(outs[i].T, axis=1) # (n_nets,N)
-        major = mode(votes, axis=1)[0]
-        print("Majority shape",major.shape)
+        major = mode(votes, axis=0)[0]
+
+
         #_,P = self.forward(X) # (K,N)
         #print("shape out",P.T.shape)
         #k = np.argmax(P.T, axis=1)
+
         return np.sum(major == y) / N
 
 
@@ -429,44 +433,77 @@ def main():
     lambdas = np.power(10,np.random.uniform(low=l_min,high=l_max,size=(n_lambdas,)))
     #lambdas = [1.117361109025311e-05]
     #lambdas = [1.0e-03]
-    lambdas = [0.0008]
+    lambdas = [0.0004]
+    #lambdas = [0.0008]
 
-    n_s = 2*np.floor(N / n_batch)
-    print("train N: ",N)
-    print("iterations per cycle, n_s: ", n_s) # always 2 epochs per cycle
+    epochs_per_cycle = 2
+    #n_s = epochs_per_cycle*np.floor(N / n_batch)
+    #print("train N: ",N)
+    #print("iterations per cycle, n_s: ", n_s) # always 2 epochs per cycle
     #n_s = 800
     eta_min = 1e-5
     eta_max = 1e-1
 
     K = 10 # classes
-    m = 65 # hid
+    m = 130 # hid
     d = 3072 # input dim
 
-    nets = []
+    #nets_of_nets = []
     val_cost = 10000
     best_lam = lambdas[0]
     best_net = None
+
+    num_cyc = 3
+    #cycles = np.random.uniform(low=2,high=5,size=(num_cyc,))
+    cycles = [5,6,8]
+    with open("epc.txt","a") as f:
+        f.write("-----------\n")
     
+    best_net = None
     for lam in lambdas:
         print("Trying lambda: ", lam)
-        for _ in range(4): # save each network for 4 cycles
-            net = Net2(d,m,K)
-            costs_train, costs_val = net.training(
-                train_data,
-                train_onehot,
-                val_data, 
-                val_onehot,
-                #eta=eta, 
-                lam=lam, 
-                n_batch=n_batch, 
-                n_epochs=2,
-                eta_min=eta_min,
-                eta_max=eta_max,
-                n_s = n_s,
-                print_epoch = 2,
-            )
-            nets.append(deepcopy(net))
+        best_val = -1
+        best_nets = None
+        best_epc = 2
+        for epc in cycles:
+            epc = int(epc)
+            print("Trying ", epc, " cycles!!!!!!!! --------")
+            n_s = int(epc*np.floor(N / n_batch))
+            nets = []
+            for j in range(9): # save each network for 4 cycles
+                net = Net2(d,m,K)
+                costs_train, costs_val = net.training(
+                    train_data,
+                    train_onehot,
+                    val_data, 
+                    val_onehot,
+                    #eta=eta, 
+                    lam=lam, 
+                    n_batch=n_batch, 
+                    n_epochs=epc,
+                    eta_min=eta_min,
+                    eta_max=eta_max,
+                    n_s = n_s,
+                    print_epoch = 2,
+                )
+                nets.append(deepcopy(net))
+                print("saved after net ", j*2, " epochs...")
+            #nets_of_nets.append(nets) 
+            val_acc = compute_accuracy_ensemble(nets,val_data, val_labels,K)
 
+            print(" VALIDATION ACC for {} cycles: {}".format(epc, val_acc))
+            with open("epc.txt","a") as f:
+                f.write("epc {}, val_acc {}\n".format(epc, val_acc))
+
+            if val_acc > best_val:
+                best_val = val_acc
+                best_nets = deepcopy(nets)
+                best_epc = epc
+         
+        print("RES: best val acc is {} for cycles: {}".format(best_val,best_epc))
+        with open("epc.txt","a") as f:
+            f.write("RES: best epc {}, best val {}\n".format(best_epc, best_val))
+        best_net = deepcopy(best_nets)
         '''
         last_valcost = costs_val[-1]
         print("DONE lam {}, last val {}".format(lam, last_valcost))
@@ -493,7 +530,7 @@ def main():
         '''
 
     # for each network
-    test_acc = compute_accuracy_ensemble(nets,test_data, test_labels,K)
+    test_acc = compute_accuracy_ensemble(best_net,test_data, test_labels,K)
 
     #test_acc = best_net.compute_accuracy(test_data, test_labels)
     #with open("lambdas.txt","a") as f:
@@ -502,6 +539,8 @@ def main():
     print("\n")
     #print("PARAMS: eta_min={}, eta_max={}, n_batch={}, n_epochs={}".format(eta_min,eta_max,n_batch,n_epochs))
     print("TEST ACCURACY with ensembles {}".format(test_acc))
+    with open("epc.txt","a") as f:
+        f.write("RES: test acc {}\n".format(test_acc))
     
     # TRAINING AND TEST DONE
 
