@@ -330,24 +330,31 @@ class Net:
         t = 1
         
         for epoch in range(n_epochs):
-            #eta = eta * 1/(1+ 0.09*epoch) 
-            #if eta < 0.001:
-            #    eta = 0.001
-            # cyclic lr
-            # t=1 to t=2*n_s
-            
             # shuffle
             permidx = np.random.permutation(N)
             Xtrain = X[:,permidx]   
             Ytrain = Y[:,permidx]   
+
             for j in range(int(N / n_batch)):
+                # get batch
                 j_start = j*n_batch #inclusive start
                 j_end = (j+1)*n_batch # exclusive end
                 Xbatch = Xtrain[:, j_start:j_end]
                 Ybatch = Ytrain[:, j_start:j_end]
-                grad_W1, grad_b1, grad_W2, grad_b2 = \
-                        self.compute_gradients(Xbatch, Ybatch, lam)
+                # get gradients, opposite order from last to first
+                grads_W, grads_b = self.compute_gradients(Xbatch,Ybatch,lam)
 
+                # update params
+                for l in range(self.n_layers):
+                    self.params["W"+str(l)] -= \
+                            eta * grads_W[self.n_layers-1-l]
+                    self.params["b"+str(l)] -= \
+                            eta * grads_b[self.n_layers-1-l]
+
+                #self.W1 = self.W1 - eta * grad_W1
+                #self.b1 = self.b1 - eta * grad_b1
+
+                # adjust cyclic learn rate
                 if t <= n_s:
                     eta = eta_min + t / n_s * (eta_max - eta_min)
                 if n_s < t and t <= 2*n_s:
@@ -356,16 +363,13 @@ class Net:
                         t = 1
                 t+=1
 
-                # update params
-                self.W2 = self.W2 - eta * grad_W2
-                self.b2 = self.b2 - eta * grad_b2
-                self.W1 = self.W1 - eta * grad_W1
-                self.b1 = self.b1 - eta * grad_b1
             # save costs
             costtrain = self.compute_cost(X, Y, lam)
             costs_train.append(costtrain)
             costval = self.compute_cost(X_val, Y_val, lam)
             costs_val.append(costval)
+            
+            # print epoch info
             if epoch % print_epoch == 0:
                 print("Epoch {} ; traincost: {} ; valcost: {}".format(epoch, costtrain, costval))
         return costs_train, costs_val
