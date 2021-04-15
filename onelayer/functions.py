@@ -214,9 +214,9 @@ def load_cifar_10_data(data_dir, negatives=False):
 
 class Net:
     def __init__(self, d, K):
-        #self.W = np.random.normal(0,.1,(K,d))
-        xavi_std = np.sqrt(2. / (d+K))
-        self.W = np.random.normal(0,xavi_std,(K,d)) # xavier
+        self.W = np.random.normal(0,.1,(K,d))
+        #xavi_std = np.sqrt(2. / (d+K))
+        #self.W = np.random.normal(0,xavi_std,(K,d)) # xavier
         self.b = np.random.normal(0,.1,(K,1)) 
 
     # data is cols in X
@@ -249,7 +249,8 @@ class Net:
         P = self.forward(X) # (K, N)
         G = -(Y - P) # (K, N)
         dLdW = 1. / N * G @ X.T
-        dLdb = 1. / N * np.matmul(G,np.ones(N))
+        #dLdb = 1. / N * np.matmul(G,np.ones(N))
+        dLdb = 1. / N * G @ np.ones(N)
         grad_W = dLdW + 2.*lam*self.W
         grad_b = np.reshape(dLdb, (K,1))
         return grad_W, grad_b
@@ -262,9 +263,9 @@ class Net:
         N = X.shape[1]
         
         for epoch in range(n_epochs):
-            eta = eta * 1/(1+ 0.09*epoch) 
-            if eta < 0.001:
-                eta = 0.001
+            #eta = eta * 1/(1+ 0.09*epoch) 
+            #if eta < 0.001:
+            #    eta = 0.001
             # shuffle
             permidx = np.random.permutation(N)
             Xtrain = X[:,permidx]   
@@ -345,6 +346,7 @@ def main():
 
     # 3.init model
     np.random.seed(400)
+    #np.random.seed(6231200)
     net = Net(d,K)
 
     # 4.evaluate
@@ -357,10 +359,10 @@ def main():
     #errW1,errb1 = net.compare_grad(train_data,train_onehot, lam)
 
     # TRAINING
-    eta = 0.1
-    lam=1
-    n_batch=50
-    n_epochs=40
+    eta = 0.001
+    lam=0.1
+    n_batch=100
+    n_epochs=80
     costs_train, costs_val = net.training(
         train_data,
         train_onehot,

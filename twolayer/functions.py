@@ -432,6 +432,10 @@ def main():
     for lam in lambdas:
         print("Trying lambda: ", lam)
         net = Net2(d,m,K)
+        print("W1: ", net.W1.shape)
+        print("b1: ", net.b1.shape)
+        print("W2: ", net.W2.shape)
+        print("b2: ", net.b2.shape)
         costs_train, costs_val = net.training(
             train_data,
             train_onehot,

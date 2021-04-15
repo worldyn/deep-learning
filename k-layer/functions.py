@@ -3,7 +3,7 @@ import pickle
 import matplotlib.pyplot as plt
 import scipy.io as sio
 from scipy.stats import mode
-from copy import deepcopy
+from copy import deepcopy,copy
 
 def softmax(x):
     """ Standard definition of the softmax function """
@@ -215,28 +215,58 @@ def load_cifar_10_data(data_dir, N_val, negatives=False):
         cifar_test_data, cifar_test_filenames, cifar_test_labels, cifar_label_names, test_onehot.T
 
 
-class Net2:
+class Net:
     # d: input dim,
     # m: hidden dim
     # K: out dim
-    def __init__(self, d,m, K):
-        std1 = 1. / np.sqrt(d)
-        self.W1 = np.random.normal(0,std1,(m,d))
-        #self.b1 = np.zeros((m,1)) 
-        self.b1 = np.random.normal(0,.1,(m,1)) 
-        std2 = 1. / np.sqrt(m)
-        self.W2 = np.random.normal(0,0.1,(K, m))
-        self.b2 = np.random.normal(0,.1,(K,1)) 
-        #self.b2 = np.zeros((K,1)) 
-        #xavi_std = np.sqrt(2. / (d+K))
-        #self.W = np.random.normal(0,xavi_std,(K,d)) # xavier
+    def __init__(self, dims):
+        self.params = {}
+        self.dims = dims
+        self.n_layers = len(dims)-1 # -2 for #hidden
+        # W: outdim x indim
+        # b: outdim x 1
+        for l in range(self.n_layers):
+            self.params['W'+str(l)] = self.he_initW(l)
+            self.params['b'+str(l)] = self.initb(l)
 
-    # returns output and hidden output
-    def forward(self,X):
-        S1 = self.W1 @ X + self.b1
-        H = relu(S1)
-        S = self.W2 @ H + self.b2
-        return H, softmax(S)
+    def W(self, i):
+        return self.params['W'+str(i)]
+    def b(self, i):
+        return self.params['b'+str(i)]
+
+    def he_initW(self, layer):
+        return np.random.randn(self.dims[layer+1], self.dims[layer]) * \
+                np.sqrt(2./self.dims[layer])
+
+    def rand_initW(self, layer):
+        return np.random.normal(
+            0,0.1, 
+            (self.dims[layer+1], self.dims[layer])
+        )
+
+    def initb(self, layer):
+        return np.zeros((self.dims[layer+1], 1))
+
+    def print_params(self):
+        for param, val in self.params.items():
+            print("{} = {}".format(param,val))
+
+    def print_params_shape(self):
+        for param, val in self.params.items():
+            print("{} : {}".format(param,val.shape))
+
+    # forward k-layer without batch normalization
+    def forward(self,X_in):
+        X_list = [] 
+        X_l = X_in
+        for l in range(self.n_layers-1):
+            S_l = self.W(l) @ X_l + self.b(l)
+            X_l = relu(S_l)
+            X_list.append(X_l)
+            
+        S = self.W(self.n_layers-1) @ X_l + self.b(self.n_layers-1)
+        P = softmax(S)
+        return X_list, P 
 
     # Y: one-hot, (K, n)
     # X: data are cols
@@ -252,7 +282,7 @@ class Net2:
     def compute_accuracy(self, X, y):
         N = X.shape[1]
         _,P = self.forward(X) # (K,N)
-        print("shape out",P.T.shape)
+        #print("shape out",P.T.shape)
         k = np.argmax(P.T, axis=1)
         return np.sum(k == y) / N
 
@@ -292,7 +322,6 @@ class Net2:
     # X: cols are data points
     def training(self, X,Y,X_val, Y_val, lam=0, n_batch=100, n_epochs=20,
             eta_min=1e-5, eta_max=1e-1,n_s=500, print_epoch=5):
-        print("training started...")
         costs_train = []
         costs_val = []
         N = X.shape[1]
@@ -357,27 +386,6 @@ class Net2:
         return errW, errb
 
 
-def compute_accuracy_ensemble(nets, X, y, K):
-        N = X.shape[1]
-        n_nets = len(nets)
-        outs = np.zeros((n_nets,K,N))
-        votes = np.zeros((n_nets,N))
-        print("label shape y ", y.shape)
-        
-        for i in range(n_nets):
-            net = nets[i]
-            _,outs[i] = net.forward(X) #(n_nets,K,N)
-            votes[i] = np.argmax(outs[i].T, axis=1) # (n_nets,N)
-        major = mode(votes, axis=0)[0]
-
-
-        #_,P = self.forward(X) # (K,N)
-        #print("shape out",P.T.shape)
-        #k = np.argmax(P.T, axis=1)
-
-        return np.sum(major == y) / N
-
-
 def main():
     cifar_10_dir = 'Dataset/cifar-10-batches-py'
 
@@ -391,7 +399,7 @@ def main():
     print("Train data: ", train_data.shape)
     print("Train filenames: ", train_filenames.shape)
     print("Train labels: ", train_labels.shape)
-    print("Train onehot: ", train_onehot)
+    print("Train onehot: ", train_onehot.shape)
     print("Val data: ", val_data.shape)
     print("val filenames: ", val_filenames.shape)
     print("val labels: ", val_labels.shape)
@@ -402,8 +410,7 @@ def main():
     print("test onehot: ", test_onehot.shape)
     print("Label names: ", label_names.shape)
 
-
-    # pre-process
+    # Pre-process
     mean_train = np.mean(train_data)
     std_train = np.std(train_data)
     print("mean, std of train: ", mean_train, " ; ", std_train)
@@ -420,41 +427,47 @@ def main():
 
     np.random.seed(400)
     
-    # TRAINING
+    ###### TRAINING #####
+
+    # Epochs and batches
     N = train_data.shape[0]
     n_batch=100
     #n_batch=50
     n_epochs=7
-    #lam=0.01
 
+    # Lambda search 
     l_min = -7
     l_max = -5
-    n_lambdas = 8
-    lambdas = np.power(10,np.random.uniform(low=l_min,high=l_max,size=(n_lambdas,)))
-    lambdas = [0.001]
+    n_lambdas = 6
+    #lambdas = np.power(10,np.random.uniform(low=l_min,high=l_max,size=(n_lambdas,)))
+    lambdas = [0]
 
+    # Cyclic Learning rate
     epochs_per_cycle = 2
     n_s = epochs_per_cycle*np.floor(N / n_batch)
     eta_min = 1e-5
     eta_max = 1e-1
 
+    # Network params
     K = 10 # classes
-    m = 130 # hid
     d = 3072 # input dim
-    net = Net(d,m,K)
+    #dims = [d,50,50,K] 
+    dims = [d,50,50,K] 
+    #m = 130 # hid
 
     # changes during lambda search
     best_val = -1 
     best_lam = lambdas[0]
     best_net = 0
+    nets = []
 
-    #cycles = np.random.uniform(low=2,high=5,size=(num_cyc,))
-    cycles = [5,6,8]
-
-    best_net = None
-
+    # LOOP TRAIN
     for lidx, lam in enumerate(lambdas):
+        print("----")
         print("Trying lambda: ", lam)
+        net = Net(dims)
+        #net.print_params_shape()
+
         costs_train, costs_val = net.training(
             train_data,
             train_onehot,
@@ -469,30 +482,34 @@ def main():
             n_s = n_s,
             print_epoch = 2,
         )
-        nets.append(deepcopy(net))
+        nets.append(copy(net))
         val_acc = net.compute_accuracy(val_data, val_labels)
 
-        if val_acc > best_val:
-            best_val = val_acc
-            best_net = lidx 
-         
+                 
         # print and log stuff
         last_valcost = costs_val[-1]
-        print("DONE lam {}, last val {}".format(lam, last_valcost))
+        print("DONE lam {}, valcost {}, valacc {}"\
+                .format(lam, last_valcost, val_acc))
         with open("lambdas.txt","a") as f:
-            f.write("lam {}, val_cost {}\n".format(lam, last_valcost))
+            f.write("lam {}, val_cost {}, val_acc\n"\
+                    .format(lam, last_valcost, val_acc))
 
         # check if better than previous lambdas
-        if  last_valcost < val_cost:
-            val_cost = last_valcost
-            best_net = lidx
+        #if  last_valcost < val_cost:
+        if val_acc > best_val:
+            best_valacc = val_acc
+            best_net = lidx 
+            best_valcost = last_valcost
             best_lam = lam
 
     # print and log test acc for the best
     test_acc = nets[best_net].compute_accuracy(test_data, test_labels)
-    print("BEST lam {}, test acc {}".format(best_lam, test_acc))
+    print(" ------")
+    print("BEST lam #{}: {}, test acc {}"\
+            .format(best_net,best_lam, test_acc))
     with open("lambdas.txt","a") as f:
-        f.write("best lam {}, test acc {}\n".format(lam, test_acc))
+        f.write("best lam #{}: {}, test acc {}\n"\
+                .format(best_net, lam, test_acc))
 
     '''
     # plot the validation and train errs
