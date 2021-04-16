@@ -275,9 +275,12 @@ class Net:
     def compute_cost(self,X, Y, lam):
         _,P = self.forward(X) # (K,n)
         N = X.shape[1]
-        l = -Y*np.log(P) # categorical cross-entropy
-        return 1. / N * np.sum(l) + lam * \
-                (np.sum(self.W1**2) + np.sum(self.W2**2))
+        crossl = -Y*np.log(P) # categorical cross-entropy
+        reg = 0
+        for l in range(self.n_layers - 1):
+            reg += np.sum(self.W(l)**2)
+        loss = 1. / N * np.sum(crossl) + lam * reg
+        return loss
 
     def compute_accuracy(self, X, y):
         N = X.shape[1]
@@ -290,34 +293,41 @@ class Net:
     def compute_gradients(self, X, Y, lam):
         N = X.shape[1]
         K = Y.shape[0]
-        m = self.b1.shape[0]
-        H,P = self.forward(X) # (K, N)
-        # out
-        G = -(Y - P) # (K, N)
-        # hid
-        dLdW2 = 1. / N * G @ H.T
-        dLdb2 = 1. / N * np.matmul(G,np.ones(N))
-        dLdb2 = 1. / N * G @ np.ones(N)
+        #m = self.b1.shape[0]
+        X_list,P = self.forward(X) # [] (K, N)
+        grads_W = []
+        grads_b = []
 
-        # activ in
-        G = self.W2.T @ G
-        G = G * np.piecewise(H, [H <= 0, H > 0], [0,1])  #* Ind(H > 0) 
-        # input layer
-        dLdW1 = 1. / N * G @ X.T
-        dLdb1 = 1. / N * G @ np.ones(N)
-        
-        # gradients
-        grad_W2 = dLdW2 + 2.*lam*self.W2
-        grad_b2 = np.reshape(dLdb2, (K,1))
-        grad_W1 = dLdW1 + 2.*lam*self.W1
-        grad_b1 = np.reshape(dLdb1, (m,1))
-        '''
-        dLdW = 1. / N * G @ X.T
-        dLdb = 1. / N * np.matmul(G,np.ones(N))
-        grad_W = dLdW + 2.*lam*self.W
-        grad_b = np.reshape(dLdb, (K,1))
-        '''
-        return grad_W1, grad_b1, grad_W2, grad_b2
+        # out layer
+        G = -(Y - P) # (K, N)
+
+        # loop through hidden layers
+        for l in range(self.n_layers - 1, 0, -1):
+            # weights
+            X_l = X_list[l-1]
+            dLdW = 1. / N * G @ X_l.T
+            grad_W = dLdW + 2.*lam*self.W(l)
+            grads_W.append(grad_W)
+            # bias
+            next_dim = self.dims[l+1]
+            dLdb = 1. / N * G @ np.ones(N)
+            grad_b = np.reshape(dLdb, (next_dim,1))
+            grads_b.append(grad_b)
+
+            # propagate backwards
+            G = self.W(l).T @ G
+            G = G * np.piecewise(X_l, [X_l <= 0, X_l > 0], [0,1])  #* Ind(H > 0) 
+        # in layer weights
+        dLdW0 = 1. / N * G @ X.T
+        grad_W0 = dLdW0 + 2.*lam*self.W(0)
+        grads_W.append(grad_W0)
+        # in layer bias
+        next_dim = self.dims[1]
+        dLdb0 = 1. / N * G @ np.ones(N)
+        grad_b0 = np.reshape(dLdb0, (next_dim,1))
+        grads_b.append(grad_b0)
+
+        return grads_W, grads_b
     
     # X: cols are data points
     def training(self, X,Y,X_val, Y_val, lam=0, n_batch=100, n_epochs=20,
@@ -456,7 +466,7 @@ def main():
     K = 10 # classes
     d = 3072 # input dim
     #dims = [d,50,50,K] 
-    dims = [d,50,50,K] 
+    dims = [d,50,K] 
     #m = 130 # hid
 
     # changes during lambda search

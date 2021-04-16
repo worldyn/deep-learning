@@ -5,3 +5,5 @@ best lam #1: 0.1, test acc 0.3776
 lam 0.001, val_cost 1.5154678009939326, val_acc
 lam 0.1, val_cost 2.0007269363206044, val_acc
 best lam #1: 0.1, test acc 0.3658
+lam 0, val_cost 1.435059461837894, val_acc
+best lam #0: 0, test acc 0.4958
