@@ -1,9 +1,17 @@
 
-lam 0.001, val_cost 1.6394502598652028, val_acc
-lam 0.1, val_cost 1.9941200857390728, val_acc
-best lam #1: 0.1, test acc 0.3776
-lam 0.001, val_cost 1.5154678009939326, val_acc
-lam 0.1, val_cost 2.0007269363206044, val_acc
-best lam #1: 0.1, test acc 0.3658
-lam 0, val_cost 1.435059461837894, val_acc
-best lam #0: 0, test acc 0.4958
+lam 0, val_cost 1.4898415813806358, val_acc
+best lam #0: 0, test acc 0.4836
+lam 0.001, val_cost 1.5236566064898616, val_acc
+best lam #0: 0.001, test acc 0.4908
+lam 0.001, val_cost 1.4584945998812953, val_acc
+best lam #0: 0.001, test acc 0.5071
+lam 0.005, val_cost 1.5218012606642046, val_acc
+best lam #0: 0.005, test acc 0.5102
+lam 0.005, val_cost 1.4789465521117138, val_acc
+best lam #0: 0.005, test acc 0.5184
+lam 0.005, val_cost 1.5059530516925692, val_acc
+best lam #0: 0.005, test acc 0.506
+lam 0.005, val_cost 1.471583896633642, val_acc
+best lam #0: 0.005, test acc 0.5241
+lam 0.005, val_cost 1.7162886699633382, val_acc
+best lam #0: 0.005, test acc 0.4595

@@ -219,7 +219,7 @@ class Net:
     # d: input dim,
     # m: hidden dim
     # K: out dim
-    def __init__(self, dims):
+    def __init__(self, dims, batchnorm=False):
         self.params = {}
         self.dims = dims
         self.n_layers = len(dims)-1 # -2 for #hidden
@@ -228,11 +228,18 @@ class Net:
         for l in range(self.n_layers):
             self.params['W'+str(l)] = self.he_initW(l)
             self.params['b'+str(l)] = self.initb(l)
+            if batchnorm:
+                self.params['gam'+str(l)] = self.initgamma(l)
+                self.params['beta'+str(l)] = self.initbeta(l)
 
     def W(self, i):
         return self.params['W'+str(i)]
     def b(self, i):
         return self.params['b'+str(i)]
+    def gam(self, i):
+        return self.params['gam'+str(i)]
+    def beta(self, i):
+        return self.params['beta'+str(i)]
 
     def he_initW(self, layer):
         return np.random.randn(self.dims[layer+1], self.dims[layer]) * \
@@ -247,6 +254,12 @@ class Net:
     def initb(self, layer):
         return np.zeros((self.dims[layer+1], 1))
 
+    def initgamma(self, layer):
+        return np.ones((self.dims[layer+1], 1))
+
+    def initbeta(self, layer):
+        return np.zeros((self.dims[layer+1], 1))
+
     def print_params(self):
         for param, val in self.params.items():
             print("{} = {}".format(param,val))
@@ -255,18 +268,53 @@ class Net:
         for param, val in self.params.items():
             print("{} : {}".format(param,val.shape))
 
-    # forward k-layer without batch normalization
-    def forward(self,X_in):
+    # forward k-layer without or with batch normalization
+    # foreach layer set means (mus) and variances (vas) to use pre-computed 
+    # without batchnorm returns list of X_l, final output P, otherwise:
+    # returns list of X_l, final out P, (computed means, computed variances)
+    # last tuple is ([],[]) if using pre-computed means and vars
+    def forward(self,X_in, batchnorm=False, mus=[], vas=[]):
         X_list = [] 
         X_l = X_in
+        N, _ = X_in.shape
+        new_mus = []
+        new_vas = []
+        
+        # all layers except out layer
         for l in range(self.n_layers-1):
             S_l = self.W(l) @ X_l + self.b(l)
+            dim,_ = S_l.shape
+            print("S_l",S_l)
+            # get mean and variance
+            if batchnorm:
+                if mus == [] or vas == []:
+                    mu = 1. / N * np.sum(S_l,axis=1)
+                    print("mu",mu)
+                    new_mus.append(mu)
+                    s = S_l - mu.reshape(dim,1)
+                    var = 1. / N * np.power(np.sum(s,axis=1), 2)
+                    print("var",var)
+                    new_vas.append(var)
+                else:
+                    mu = mus[l]
+                    var = vas[l]
+                # batch normalize
+                eps=1e-5
+                center = S_l - mu.reshape(dim,1)
+                var_eps = var+eps
+                print("var_eps ",var_eps)
+                S_l = np.power(np.diag((var_eps)), -1./2.) @ center
+                S_l = self.gam(l) * S_l + self.beta(l)
+            # activation function
             X_l = relu(S_l)
             X_list.append(X_l)
             
+        # output layer
         S = self.W(self.n_layers-1) @ X_l + self.b(self.n_layers-1)
         P = softmax(S)
-        return X_list, P 
+        if batchnorm:
+            return X_list, P, (new_mus, new_vas)
+        return X_list, P
 
     # Y: one-hot, (K, n)
     # X: data are cols
@@ -447,26 +495,27 @@ def main():
     N = train_data.shape[0]
     n_batch=100
     #n_batch=50
-    n_epochs=7
+    n_epochs=9
 
     # Lambda search 
     l_min = -7
     l_max = -5
     n_lambdas = 6
     #lambdas = np.power(10,np.random.uniform(low=l_min,high=l_max,size=(n_lambdas,)))
-    lambdas = [0]
+    lambdas = [0.005]
 
     # Cyclic Learning rate
     epochs_per_cycle = 2
-    n_s = epochs_per_cycle*np.floor(N / n_batch)
+    #n_s = epochs_per_cycle*np.floor(N / n_batch)
+    n_s =  5*45000 / n_batch
     eta_min = 1e-5
     eta_max = 1e-1
 
     # Network params
     K = 10 # classes
     d = 3072 # input dim
-    #dims = [d,50,50,K] 
-    dims = [d,50,K] 
+    dims = [d,50,50,K] 
+    #dims = [d,50,30,20,20,10,10,10,10,K] 
     #m = 130 # hid
 
     # changes during lambda search
@@ -479,8 +528,18 @@ def main():
     for lidx, lam in enumerate(lambdas):
         print("----")
         print("Trying lambda: ", lam)
-        net = Net(dims)
+        net = Net(dims, batchnorm = True)
         #net.print_params_shape()
+        #X_list, P = net.forward(train_data)
+        X_list, P, (mus, vas) = net.forward(train_data, batchnorm = True)
+        for x in X_list:
+            print("x ",x.shape)
+        print("P ",P.shape)
+        for mu in mus:
+            print("mu ",mu.shape)
+        for var in vas:
+            print("var ",var.shape)
+        return
 
         costs_train, costs_val = net.training(
             train_data,
@@ -525,7 +584,6 @@ def main():
         f.write("best lam #{}: {}, test acc {}\n"\
                 .format(best_net, lam, test_acc))
 
-    '''
     # plot the validation and train errs
     fig = plt.figure()
     fig.suptitle(
@@ -537,7 +595,6 @@ def main():
     plt.plot(costs_train, 'r')
     plt.plot(costs_val, 'g')
     plt.show()
-    '''
 
 
 if __name__ == "__main__":
