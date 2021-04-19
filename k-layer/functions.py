@@ -223,6 +223,10 @@ class Net:
         self.params = {}
         self.dims = dims
         self.n_layers = len(dims)-1 # -2 for #hidden
+        self.batchnorm = batchnorm
+        if batchnorm:
+            self.mus = []
+            self.vas = []
         # W: outdim x indim
         # b: outdim x 1
         for l in range(self.n_layers):
@@ -273,7 +277,7 @@ class Net:
     # without batchnorm returns list of X_l, final output P, otherwise:
     # returns list of X_l, final out P, (computed means, computed variances)
     # last tuple is ([],[]) if using pre-computed means and vars
-    def forward(self,X_in, batchnorm=False, mus=[], vas=[]):
+    def forward(self,X_in, training=False, testing=False,mus=[], vas=[]):
         X_list = [] 
         X_l = X_in
         N, _ = X_in.shape
@@ -284,26 +288,26 @@ class Net:
         for l in range(self.n_layers-1):
             S_l = self.W(l) @ X_l + self.b(l)
             dim,_ = S_l.shape
-            print("S_l",S_l)
+            #print("S_l",S_l)
             # get mean and variance
-            if batchnorm:
-                if mus == [] or vas == []:
-                    mu = 1. / N * np.sum(S_l,axis=1)
-                    print("mu",mu)
-                    new_mus.append(mu)
-                    s = S_l - mu.reshape(dim,1)
-                    var = 1. / N * np.power(np.sum(s,axis=1), 2)
-                    print("var",var)
-                    new_vas.append(var)
+            if self.batchnorm:
+                if testing:
+                    mu = self.mus[l]
+                    var = self.vas[l]
                 else:
-                    mu = mus[l]
-                    var = vas[l]
+                    mu = np.mean(S_l,axis=1,keepdims=True)
+                    new_mus.append(mu)
+                    var = (N-1)/N * np.var(S_l, axis=1, keepdims=True) 
+                    new_vas.append(var)
+                    if training:
+                        a = 0.8 # alpha
+                        self.mus[l] = a * self.mus[l] + (1-a) * mu 
+                        self.vas[l] = a * self.vas[l] + (1-a) * var
                 # batch normalize
-                eps=1e-5
-                center = S_l - mu.reshape(dim,1)
-                var_eps = var+eps
-                print("var_eps ",var_eps)
-                S_l = np.power(np.diag((var_eps)), -1./2.) @ center
+                eps= np.finfo(np.float64).eps
+                vareps = var + eps
+                S_l = 1. / np.sqrt(np.diag(vareps)) * (S_l - mu)
+                # scale
                 S_l = self.gam(l) * S_l + self.beta(l)
             # activation function
             X_l = relu(S_l)
@@ -312,7 +316,7 @@ class Net:
         # output layer
         S = self.W(self.n_layers-1) @ X_l + self.b(self.n_layers-1)
         P = softmax(S)
-        if batchnorm:
+        if self.batchnorm:
             return X_list, P, (new_mus, new_vas)
         return X_list, P
 
@@ -321,7 +325,10 @@ class Net:
     # lam: penalty term
     # returns cross-entropy loss
     def compute_cost(self,X, Y, lam):
-        _,P = self.forward(X) # (K,n)
+        if self.batchnorm:
+            _,P,_ = self.forward(X) # (K,n)
+        else:
+            _,P = self.forward(X) # (K,n)
         N = X.shape[1]
         crossl = -Y*np.log(P) # categorical cross-entropy
         reg = 0
@@ -332,7 +339,10 @@ class Net:
 
     def compute_accuracy(self, X, y):
         N = X.shape[1]
-        _,P = self.forward(X) # (K,N)
+        if self.batchnorm:
+            _,P,_ = self.forward(X) # (K,n)
+        else:
+            _,P = self.forward(X) # (K,n)
         #print("shape out",P.T.shape)
         k = np.argmax(P.T, axis=1)
         return np.sum(k == y) / N
@@ -342,7 +352,10 @@ class Net:
         N = X.shape[1]
         K = Y.shape[0]
         #m = self.b1.shape[0]
-        X_list,P = self.forward(X) # [] (K, N)
+        if self.batchnorm:
+            X_list,P,new_mus,new_vas = self.forward(X) # [],(K, N),[],[]
+        else:
+            X_list,P = self.forward(X) # [] (K, N)
         grads_W = []
         grads_b = []
 
@@ -529,18 +542,14 @@ def main():
         print("----")
         print("Trying lambda: ", lam)
         net = Net(dims, batchnorm = True)
+
         #net.print_params_shape()
         #X_list, P = net.forward(train_data)
-        X_list, P, (mus, vas) = net.forward(train_data, batchnorm = True)
-        for x in X_list:
-            print("x ",x.shape)
-        print("P ",P.shape)
-        for mu in mus:
-            print("mu ",mu.shape)
-        for var in vas:
-            print("var ",var.shape)
-        return
+        #X_list, P, (mus, vas) = net.forward(train_data,training=True)
+        #c = net.compute_cost(train_data, train_onehot, lam) 
+        #a = net.compute_accuracy(train_data, train_onehot) 
 
+        return
         costs_train, costs_val = net.training(
             train_data,
             train_onehot,
