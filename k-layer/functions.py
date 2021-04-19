@@ -279,6 +279,8 @@ class Net:
     # last tuple is ([],[]) if using pre-computed means and vars
     def forward(self,X_in, training=False, testing=False,mus=[], vas=[]):
         X_list = [] 
+        S_list = []
+        Shat_list = []
         X_l = X_in
         N, _ = X_in.shape
         new_mus = []
@@ -287,6 +289,7 @@ class Net:
         # all layers except out layer
         for l in range(self.n_layers-1):
             S_l = self.W(l) @ X_l + self.b(l)
+            S_list.append(S_l)
             dim,_ = S_l.shape
             #print("S_l",S_l)
             # get mean and variance
@@ -307,6 +310,7 @@ class Net:
                 eps= np.finfo(np.float64).eps
                 vareps = var + eps
                 S_l = 1. / np.sqrt(np.diag(vareps)) * (S_l - mu)
+                Shat_list.append(S_l)
                 # scale
                 S_l = self.gam(l) * S_l + self.beta(l)
             # activation function
@@ -317,7 +321,7 @@ class Net:
         S = self.W(self.n_layers-1) @ X_l + self.b(self.n_layers-1)
         P = softmax(S)
         if self.batchnorm:
-            return X_list, P, (new_mus, new_vas)
+            return S_list, Shat_list, X_list, P, (new_mus, new_vas)
         return X_list, P
 
     # Y: one-hot, (K, n)
@@ -326,7 +330,7 @@ class Net:
     # returns cross-entropy loss
     def compute_cost(self,X, Y, lam):
         if self.batchnorm:
-            _,P,_ = self.forward(X) # (K,n)
+            _,_,_,P,_ = self.forward(X) # (K,n)
         else:
             _,P = self.forward(X) # (K,n)
         N = X.shape[1]
@@ -340,7 +344,7 @@ class Net:
     def compute_accuracy(self, X, y):
         N = X.shape[1]
         if self.batchnorm:
-            _,P,_ = self.forward(X) # (K,n)
+            _,_,_,P,_ = self.forward(X) # (K,n)
         else:
             _,P = self.forward(X) # (K,n)
         #print("shape out",P.T.shape)
@@ -353,7 +357,8 @@ class Net:
         K = Y.shape[0]
         #m = self.b1.shape[0]
         if self.batchnorm:
-            X_list,P,new_mus,new_vas = self.forward(X) # [],(K, N),[],[]
+            S_list, Shat_list X_list,P,new_mus,new_vas = \
+                    self.forward(X) # [],(K, N),[],[]
         else:
             X_list,P = self.forward(X) # [] (K, N)
         grads_W = []
@@ -364,16 +369,20 @@ class Net:
 
         # loop through hidden layers
         for l in range(self.n_layers - 1, 0, -1):
-            # weights
-            X_l = X_list[l-1]
-            dLdW = 1. / N * G @ X_l.T
-            grad_W = dLdW + 2.*lam*self.W(l)
-            grads_W.append(grad_W)
-            # bias
-            next_dim = self.dims[l+1]
-            dLdb = 1. / N * G @ np.ones(N)
-            grad_b = np.reshape(dLdb, (next_dim,1))
-            grads_b.append(grad_b)
+            if batchnorm and l == self.n_layers - 1:
+                # weights
+                X_l = X_list[l-1]
+                dLdW = 1. / N * G @ X_l.T
+                grad_W = dLdW + 2.*lam*self.W(l)
+                grads_W.append(grad_W)
+                # bias
+                next_dim = self.dims[l+1]
+                dLdb = 1. / N * G @ np.ones(N)
+                grad_b = np.reshape(dLdb, (next_dim,1))
+                grads_b.append(grad_b)
+            else:
+                # TODO: batchnorm stuff
+                # continue here
 
             # propagate backwards
             G = self.W(l).T @ G
@@ -435,6 +444,7 @@ class Net:
                 t+=1
 
             # save costs
+            # TODO: USE MOVING MU AND VAR HERE
             costtrain = self.compute_cost(X, Y, lam)
             costs_train.append(costtrain)
             costval = self.compute_cost(X_val, Y_val, lam)
@@ -549,7 +559,6 @@ def main():
         #c = net.compute_cost(train_data, train_onehot, lam) 
         #a = net.compute_accuracy(train_data, train_onehot) 
 
-        return
         costs_train, costs_val = net.training(
             train_data,
             train_onehot,
