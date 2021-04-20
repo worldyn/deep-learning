@@ -235,6 +235,8 @@ class Net:
             if batchnorm:
                 self.params['gam'+str(l)] = self.initgamma(l)
                 self.params['beta'+str(l)] = self.initbeta(l)
+                self.mus.append(np.zeros((self.dims[l+1],1)))
+                self.vas.append(np.zeros((self.dims[l+1],1)))
 
     def W(self, i):
         return self.params['W'+str(i)]
@@ -277,7 +279,7 @@ class Net:
     # without batchnorm returns list of X_l, final output P, otherwise:
     # returns list of X_l, final out P, (computed means, computed variances)
     # last tuple is ([],[]) if using pre-computed means and vars
-    def forward(self,X_in, training=False, testing=False,mus=[], vas=[]):
+    def forward(self,X_in, training=False, testing=False):
         X_list = [] 
         S_list = []
         Shat_list = []
@@ -328,9 +330,9 @@ class Net:
     # X: data are cols
     # lam: penalty term
     # returns cross-entropy loss
-    def compute_cost(self,X, Y, lam):
+    def compute_cost(self,X, Y, lam, testing=False):
         if self.batchnorm:
-            _,_,_,P,_ = self.forward(X) # (K,n)
+            _,_,_,P,_ = self.forward(X, testing) # (K,n)
         else:
             _,P = self.forward(X) # (K,n)
         N = X.shape[1]
@@ -341,10 +343,10 @@ class Net:
         loss = 1. / N * np.sum(crossl) + lam * reg
         return loss
 
-    def compute_accuracy(self, X, y):
+    def compute_accuracy(self, X, y, testing=False):
         N = X.shape[1]
         if self.batchnorm:
-            _,_,_,P,_ = self.forward(X) # (K,n)
+            _,_,_,P,_ = self.forward(X, testing) # (K,n)
         else:
             _,P = self.forward(X) # (K,n)
         #print("shape out",P.T.shape)
@@ -356,20 +358,46 @@ class Net:
         N = X.shape[1]
         K = Y.shape[0]
         #m = self.b1.shape[0]
-        if self.batchnorm:
-            S_list, Shat_list X_list,P,new_mus,new_vas = \
-                    self.forward(X) # [],(K, N),[],[]
-        else:
-            X_list,P = self.forward(X) # [] (K, N)
         grads_W = []
         grads_b = []
+
+        if self.batchnorm:
+            S_list, Shat_list, X_list,P,(new_mus,new_vas) = \
+                    self.forward(X,training=True) # [],(K, N),[],[]
+            grads_gam = []
+            grads_beta = []
+        else:
+            X_list,P = self.forward(X) # [] (K, N)
 
         # out layer
         G = -(Y - P) # (K, N)
 
-        # loop through hidden layers
-        for l in range(self.n_layers - 1, 0, -1):
-            if batchnorm and l == self.n_layers - 1:
+        if self.batchnorm:
+            X_l = X_list[-1]
+            idx = self.n_layers - 1
+            # weights
+            dLdW = 1. / N * G @ X_l.T
+            grad_W = dLdW + 2.*lam*self.W(idx)
+            grads_W.append(grad_W)
+            # bias
+            next_dim = self.dims[idx+1]
+            dLdb = 1. / N * G @ np.ones(N)
+            grad_b = np.reshape(dLdb, (next_dim,1))
+            grads_b.append(grad_b)
+            # propagate backwards
+            G = self.W(idx).T @ G
+            G = G * np.piecewise(X_l, [X_l <= 0, X_l > 0], [0,1])  #* Ind(H > 0) 
+
+        if self.batchnorm:
+            end = -1
+            start = self.n_layers - 2
+        else:
+            end = 0
+            start = self.n_layers - 1
+
+        # GRADS
+        for l in range(start, end, -1):
+            if not self.batchnorm:
                 # weights
                 X_l = X_list[l-1]
                 dLdW = 1. / N * G @ X_l.T
@@ -381,22 +409,71 @@ class Net:
                 grad_b = np.reshape(dLdb, (next_dim,1))
                 grads_b.append(grad_b)
             else:
-                # TODO: batchnorm stuff
-                # continue here
+                # grad gamma 
+                print("Layer ",l)
+                Shat_l = Shat_list[l-1]
+                S_l = S_list[l-1]
+                grad_gam = 1./N * (G * Shat_l) @ np.ones(N)
+                grads_gam.append(grad_gam)
+                
+                # grad beta
+                grad_beta = 1./N * G @ np.ones(N)
+                grads_beta.append(grad_beta)
+                ones = np.ones((N,1))
+                # prop backwards from scaling
+                G = G * (self.gam(l) @ ones.T)
+
+                # batch norm layers
+                eps= np.finfo(np.float64).eps
+                var = new_vas[l]
+                sig1 = 1. / np.sqrt(var+eps)
+                sig2 = 1. / np.power(var+eps, 1.5)
+
+                G1 = G * (sig1 @ ones.T)
+                G2 = G * (sig2 @ ones.T)
+                #G1 = G * sig1 
+                #G2 = G * sig2 
+
+                mu = new_mus[l]
+                D = S_l - mu @ ones.T
+                #D = S_l - mu
+                c = (G2 * D) @ ones
+
+                G = G1 - 1./N*(G1 @ ones) @ ones.T - 1./N * D *(c @ ones.T)
+
+                # grads for W and bias
+                X_l = X_list[l-1]
+                print("X_l-1", X_l.shape)
+                print("X_l", X_list[l].shape)
+                
+                dLdW = 1. / N * G @ X_l.T
+                print("dldw", dLdW.shape)
+                print("W", self.W(l).shape)
+                grad_W = dLdW + 2.*lam*self.W(l)
+                grads_W.append(grad_W)
+                next_dim = self.dims[l+1]
+                dLdb = 1. / N * G @ np.ones(N)
+                grad_b = np.reshape(dLdb, (next_dim,1))
+                grads_b.append(grad_b)
+
 
             # propagate backwards
-            G = self.W(l).T @ G
-            G = G * np.piecewise(X_l, [X_l <= 0, X_l > 0], [0,1])  #* Ind(H > 0) 
+            if l > 0:
+                G = self.W(l).T @ G
+                G = G * np.piecewise(X_l, [X_l <= 0, X_l > 0], [0,1])  #* Ind(H > 0) 
         # in layer weights
-        dLdW0 = 1. / N * G @ X.T
-        grad_W0 = dLdW0 + 2.*lam*self.W(0)
-        grads_W.append(grad_W0)
-        # in layer bias
-        next_dim = self.dims[1]
-        dLdb0 = 1. / N * G @ np.ones(N)
-        grad_b0 = np.reshape(dLdb0, (next_dim,1))
-        grads_b.append(grad_b0)
+        if not self.batchnorm:
+            dLdW0 = 1. / N * G @ X.T
+            grad_W0 = dLdW0 + 2.*lam*self.W(0)
+            grads_W.append(grad_W0)
+            # in layer bias
+            next_dim = self.dims[1]
+            dLdb0 = 1. / N * G @ np.ones(N)
+            grad_b0 = np.reshape(dLdb0, (next_dim,1))
+            grads_b.append(grad_b0)
 
+        if self.batchnorm:
+            return grads_W, grads_b, grads_gam, grads_beta
         return grads_W, grads_b
     
     # X: cols are data points
@@ -415,6 +492,7 @@ class Net:
             Xtrain = X[:,permidx]   
             Ytrain = Y[:,permidx]   
 
+            # TRAIN
             for j in range(int(N / n_batch)):
                 # get batch
                 j_start = j*n_batch #inclusive start
@@ -422,14 +500,32 @@ class Net:
                 Xbatch = Xtrain[:, j_start:j_end]
                 Ybatch = Ytrain[:, j_start:j_end]
                 # get gradients, opposite order from last to first
-                grads_W, grads_b = self.compute_gradients(Xbatch,Ybatch,lam)
+                if self.batchnorm:
+                    grads_W, grads_b, grads_gam, grads_beta = \
+                            self.compute_gradients(Xbatch,Ybatch,lam)
+                else:
+                    grads_W, grads_b = \
+                            self.compute_gradients(Xbatch,Ybatch,lam)
 
                 # update params
+                for k,v in self.params.items():
+                    print(k)
+                print("len W",len(grads_W))
+                print("len b",len(grads_b))
+                print("len gam",len(grads_gam))
+                print("len beta",len(grads_beta))
                 for l in range(self.n_layers):
                     self.params["W"+str(l)] -= \
                             eta * grads_W[self.n_layers-1-l]
                     self.params["b"+str(l)] -= \
                             eta * grads_b[self.n_layers-1-l]
+                if self.batchnorm:
+                    # only for hidden layer(s)
+                    for hl in range(self.n_layers - 1):
+                        self.params["gam"+str(l)] -= \
+                                eta * grads_gam[self.n_layers-2-l]
+                        self.params["beta"+str(l)] -= \
+                                eta * grads_beta[self.n_layers-2-l]
 
                 #self.W1 = self.W1 - eta * grad_W1
                 #self.b1 = self.b1 - eta * grad_b1
