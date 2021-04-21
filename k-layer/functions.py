@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import scipy.io as sio
 from scipy.stats import mode
 from copy import deepcopy,copy
+import sys
 
 def softmax(x):
     """ Standard definition of the softmax function """
@@ -222,7 +223,8 @@ class Net:
     def __init__(self, dims, batchnorm=False):
         self.params = {}
         self.dims = dims
-        self.n_layers = len(dims)-1 # -2 for #hidden
+        self.n_layers = len(dims)-1 
+        self.n_hidden = self.n_layers - 1
         self.batchnorm = batchnorm
         if batchnorm:
             self.mus = []
@@ -288,41 +290,49 @@ class Net:
         N, _ = X_in.shape
         new_mus = []
         new_vas = []
-        
         # all layers except out layer
-        for l in range(self.n_layers-1):
-            S_l = self.W(l) @ X_l + self.b(l)
-            S_list.append(S_l)
-            dim,_ = S_l.shape
-            #print("S_l",S_l)
-            # get mean and variance
-            if self.batchnorm:
-                if testing:
-                    mu = self.mus[l]
-                    var = self.vas[l]
-                else:
-                    mu = np.mean(S_l,axis=1,keepdims=True)
-                    new_mus.append(mu)
-                    var = (N-1)/N * np.var(S_l, axis=1, keepdims=True) 
-                    new_vas.append(var)
-                    if training:
-                        a = 0.8 # alpha
-                        self.mus[l] = a * self.mus[l] + (1-a) * mu 
-                        self.vas[l] = a * self.vas[l] + (1-a) * var
-                # batch normalize
-                eps= np.finfo(np.float64).eps
-                vareps = var + eps
-                S_l = 1. / np.sqrt(np.diag(vareps)) * (S_l - mu)
-                Shat_list.append(S_l)
-                # scale
-                S_l = self.gam(l) * S_l + self.beta(l)
-            # activation function
-            X_l = relu(S_l)
+        for l in range(self.n_layers):
             X_list.append(X_l)
-            
-        # output layer
-        S = self.W(self.n_layers-1) @ X_l + self.b(self.n_layers-1)
-        P = softmax(S)
+            S_l = self.W(l) @ X_l + self.b(l)
+
+            if l < self.n_hidden:
+                S_list.append(S_l)
+                dim,_ = S_l.shape
+                #print("S_l",S_l)
+                # get mean and variance
+                if self.batchnorm:
+                    if testing:
+                        mu = self.mus[l]
+                        var = self.vas[l]
+                    else:
+                        mu = np.mean(S_l,axis=1,keepdims=True)
+                        new_mus.append(mu)
+                        var = float(N-1)/N \
+                                * np.var(S_l, axis=1, keepdims=True) 
+                        new_vas.append(var)
+                        if training:
+                            a = 0.8 # alpha
+                            self.mus[l] = a * self.mus[l] + (1-a) * mu 
+                            self.vas[l] = a * self.vas[l] + (1-a) * var
+                    # batch normalize
+                    eps= np.finfo(np.float64).eps
+                    vareps = var + eps
+                    S_l = 1. / np.sqrt(np.diag(vareps)) * (S_l - mu)
+                    Shat_list.append(S_l)
+                    # scale
+                    S_l = self.gam(l) * S_l + self.beta(l)
+                # END batchnorm
+                # activation function
+                X_l = relu(S_l)
+                #X_list.append(X_l)
+            else:
+                # output layer
+                P = softmax(S_l)
+        
+        #if np.isnan(P).any():
+        #    print("X_l ", X_l)
+        #    sys.exit()
+
         if self.batchnorm:
             return S_list, Shat_list, X_list, P, (new_mus, new_vas)
         return X_list, P
@@ -370,11 +380,18 @@ class Net:
         else:
             X_list,P = self.forward(X) # [] (K, N)
 
+        # debugging stuff:
+        if np.isnan(P).any():
+            self.print_params()
+            sys.exit()
+        
         # out layer
         G = -(Y - P) # (K, N)
 
+
         if self.batchnorm:
             X_l = X_list[-1]
+            #print("X_l: ", X_l)
             idx = self.n_layers - 1
             # weights
             dLdW = 1. / N * G @ X_l.T
@@ -520,19 +537,25 @@ class Net:
                 #print("len gam",len(grads_gam))
                 #print("len beta",len(grads_beta))
                 for l in range(self.n_layers):
+                    gradw = grads_W[self.n_layers-1-l]
+                    #print("gradw {}, iter {}".format(gradw,j))
                     self.params["W"+str(l)] -= \
-                            eta * grads_W[self.n_layers-1-l]
+                            eta * gradw 
+                    gradb = grads_b[self.n_layers-1-l]
+                    #print("gradb {}, iter {}".format(gradb,j))
                     self.params["b"+str(l)] -= \
-                            eta * grads_b[self.n_layers-1-l]
+                            eta * gradb 
                 if self.batchnorm:
                     # only for hidden layer(s)
                     for hl in range(self.n_layers - 1):
                         gamgrad = grads_gam[self.n_layers-2-hl]
                         gamgrad = gamgrad.reshape((len(gamgrad),1))
+                        #print("gradgam {}, iter {}".format(gamgrad,j))
                         self.params["gam"+str(hl)] -= \
                                 eta * gamgrad 
                         betagrad = grads_beta[self.n_layers-2-hl]
                         betagrad = betagrad.reshape((len(betagrad),1))
+                        #print("gradbeta {}, iter {}".format(betagrad,j))
                         self.params["beta"+str(hl)] -= \
                                 eta * betagrad
 
