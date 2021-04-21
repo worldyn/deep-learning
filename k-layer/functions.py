@@ -232,7 +232,8 @@ class Net:
         for l in range(self.n_layers):
             self.params['W'+str(l)] = self.he_initW(l)
             self.params['b'+str(l)] = self.initb(l)
-            if batchnorm:
+        if batchnorm:
+            for l in range(self.n_layers - 1):
                 self.params['gam'+str(l)] = self.initgamma(l)
                 self.params['beta'+str(l)] = self.initbeta(l)
                 self.mus.append(np.zeros((self.dims[l+1],1)))
@@ -410,7 +411,7 @@ class Net:
                 grads_b.append(grad_b)
             else:
                 # grad gamma 
-                print("Layer ",l)
+                #print("Layer ",l)
                 Shat_l = Shat_list[l-1]
                 S_l = S_list[l-1]
                 grad_gam = 1./N * (G * Shat_l) @ np.ones(N)
@@ -443,12 +444,16 @@ class Net:
 
                 # grads for W and bias
                 X_l = X_list[l-1]
-                print("X_l-1", X_l.shape)
-                print("X_l", X_list[l].shape)
+                if l == 0:
+                    X_l = X
+
+                #print("X_l-1", X_l.shape)
+                #print("X_l", X_list[l].shape)
                 
+                #print("G shape",G.shape)
                 dLdW = 1. / N * G @ X_l.T
-                print("dldw", dLdW.shape)
-                print("W", self.W(l).shape)
+                #print("dldw", dLdW.shape)
+                #print("W", self.W(l).shape)
                 grad_W = dLdW + 2.*lam*self.W(l)
                 grads_W.append(grad_W)
                 next_dim = self.dims[l+1]
@@ -508,12 +513,12 @@ class Net:
                             self.compute_gradients(Xbatch,Ybatch,lam)
 
                 # update params
-                for k,v in self.params.items():
-                    print(k)
-                print("len W",len(grads_W))
-                print("len b",len(grads_b))
-                print("len gam",len(grads_gam))
-                print("len beta",len(grads_beta))
+                #for k,v in self.params.items():
+                #    print(k)
+                #print("len W",len(grads_W))
+                #print("len b",len(grads_b))
+                #print("len gam",len(grads_gam))
+                #print("len beta",len(grads_beta))
                 for l in range(self.n_layers):
                     self.params["W"+str(l)] -= \
                             eta * grads_W[self.n_layers-1-l]
@@ -522,10 +527,14 @@ class Net:
                 if self.batchnorm:
                     # only for hidden layer(s)
                     for hl in range(self.n_layers - 1):
-                        self.params["gam"+str(l)] -= \
-                                eta * grads_gam[self.n_layers-2-l]
-                        self.params["beta"+str(l)] -= \
-                                eta * grads_beta[self.n_layers-2-l]
+                        gamgrad = grads_gam[self.n_layers-2-hl]
+                        gamgrad = gamgrad.reshape((len(gamgrad),1))
+                        self.params["gam"+str(hl)] -= \
+                                eta * gamgrad 
+                        betagrad = grads_beta[self.n_layers-2-hl]
+                        betagrad = betagrad.reshape((len(betagrad),1))
+                        self.params["beta"+str(hl)] -= \
+                                eta * betagrad
 
                 #self.W1 = self.W1 - eta * grad_W1
                 #self.b1 = self.b1 - eta * grad_b1
