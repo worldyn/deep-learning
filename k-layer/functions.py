@@ -372,6 +372,7 @@ class Net:
         grads_W = []
         grads_b = []
 
+        # X_list contains input as well
         if self.batchnorm:
             S_list, Shat_list, X_list,P,(new_mus,new_vas) = \
                     self.forward(X,training=True) # [],(K, N),[],[]
@@ -381,18 +382,18 @@ class Net:
             X_list,P = self.forward(X) # [] (K, N)
 
         # debugging stuff:
-        if np.isnan(P).any():
-            self.print_params()
-            sys.exit()
+        #if np.isnan(P).any():
+        #    self.print_params()
+        #    sys.exit()
         
         # out layer
         G = -(Y - P) # (K, N)
 
 
         if self.batchnorm:
-            X_l = X_list[-1]
-            #print("X_l: ", X_l)
             idx = self.n_layers - 1
+            X_l = X_list[idx]
+            #print("X_l: ", X_l)
             # weights
             dLdW = 1. / N * G @ X_l.T
             grad_W = dLdW + 2.*lam*self.W(idx)
@@ -417,7 +418,7 @@ class Net:
         for l in range(start, end, -1):
             if not self.batchnorm:
                 # weights
-                X_l = X_list[l-1]
+                X_l = X_list[l]
                 dLdW = 1. / N * G @ X_l.T
                 grad_W = dLdW + 2.*lam*self.W(l)
                 grads_W.append(grad_W)
@@ -429,8 +430,8 @@ class Net:
             else:
                 # grad gamma 
                 #print("Layer ",l)
-                Shat_l = Shat_list[l-1]
-                S_l = S_list[l-1]
+                Shat_l = Shat_list[l]
+                S_l = S_list[l]
                 grad_gam = 1./N * (G * Shat_l) @ np.ones(N)
                 grads_gam.append(grad_gam)
                 
@@ -460,24 +461,15 @@ class Net:
                 G = G1 - 1./N*(G1 @ ones) @ ones.T - 1./N * D *(c @ ones.T)
 
                 # grads for W and bias
-                X_l = X_list[l-1]
-                if l == 0:
-                    X_l = X
+                X_l = X_list[l]
 
-                #print("X_l-1", X_l.shape)
-                #print("X_l", X_list[l].shape)
-                
-                #print("G shape",G.shape)
                 dLdW = 1. / N * G @ X_l.T
-                #print("dldw", dLdW.shape)
-                #print("W", self.W(l).shape)
                 grad_W = dLdW + 2.*lam*self.W(l)
                 grads_W.append(grad_W)
                 next_dim = self.dims[l+1]
                 dLdb = 1. / N * G @ np.ones(N)
                 grad_b = np.reshape(dLdb, (next_dim,1))
                 grads_b.append(grad_b)
-
 
             # propagate backwards
             if l > 0:
@@ -521,6 +513,7 @@ class Net:
                 j_end = (j+1)*n_batch # exclusive end
                 Xbatch = Xtrain[:, j_start:j_end]
                 Ybatch = Ytrain[:, j_start:j_end]
+
                 # get gradients, opposite order from last to first
                 if self.batchnorm:
                     grads_W, grads_b, grads_gam, grads_beta = \
@@ -529,13 +522,7 @@ class Net:
                     grads_W, grads_b = \
                             self.compute_gradients(Xbatch,Ybatch,lam)
 
-                # update params
-                #for k,v in self.params.items():
-                #    print(k)
-                #print("len W",len(grads_W))
-                #print("len b",len(grads_b))
-                #print("len gam",len(grads_gam))
-                #print("len beta",len(grads_beta))
+                # UPDATES
                 for l in range(self.n_layers):
                     gradw = grads_W[self.n_layers-1-l]
                     #print("gradw {}, iter {}".format(gradw,j))
@@ -602,7 +589,7 @@ class Net:
 def main():
     cifar_10_dir = 'Dataset/cifar-10-batches-py'
 
-    N_val = 1000
+    N_val = 5000
 
     train_data, train_filenames, train_labels, train_onehot,\
     val_data, val_filenames, val_labels, val_onehot,\
@@ -646,7 +633,7 @@ def main():
     N = train_data.shape[0]
     n_batch=100
     #n_batch=50
-    n_epochs=9
+    n_epochs=21
 
     # Lambda search 
     l_min = -7
@@ -665,8 +652,8 @@ def main():
     # Network params
     K = 10 # classes
     d = 3072 # input dim
-    dims = [d,50,50,K] 
-    #dims = [d,50,30,20,20,10,10,10,10,K] 
+    #dims = [d,50,50,K] 
+    dims = [d,50,30,20,20,10,10,10,10,K] 
     #m = 130 # hid
 
     # changes during lambda search
@@ -680,6 +667,7 @@ def main():
         print("----")
         print("Trying lambda: ", lam)
         net = Net(dims, batchnorm = True)
+        #net = Net(dims)
 
         #net.print_params_shape()
         #X_list, P = net.forward(train_data)
@@ -699,7 +687,7 @@ def main():
             eta_min=eta_min,
             eta_max=eta_max,
             n_s = n_s,
-            print_epoch = 2,
+            print_epoch = 3,
         )
         nets.append(copy(net))
         val_acc = net.compute_accuracy(val_data, val_labels)
