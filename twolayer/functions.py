@@ -402,7 +402,8 @@ def main():
     N = train_data.shape[0]
     n_batch=100
     #n_batch=50
-    n_epochs=7
+    #n_epochs=7
+    n_epochs=16 * 3
     #lam=0.01
 
     l_min = -7
@@ -411,9 +412,11 @@ def main():
     lambdas = np.power(10,np.random.uniform(low=l_min,high=l_max,size=(n_lambdas,)))
     #lambdas = [1.117361109025311e-05]
     #lambdas = [1.0e-03]
-    lambdas = [0.0008]
+    #lambdas = [0.0008]
+    lambdas = [0.01]
 
-    n_s = 2*np.floor(N / n_batch)
+    #n_s = 2*np.floor(N / n_batch)
+    n_s = 800 
     print("train N: ",N)
     print("iterations per cycle, n_s: ", n_s) # always 2 epochs per cycle
     #n_s = 800
@@ -421,7 +424,8 @@ def main():
     eta_max = 1e-1
 
     K = 10 # classes
-    m = 90 # hid
+    #m = 90 # hid
+    m = 50 # hid
     d = 3072 # input dim
 
     nets = []
