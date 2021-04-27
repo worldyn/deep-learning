@@ -121,6 +121,85 @@ def unpickle(file):
     return data
 
 
+def load_cifar_10_data_onebatch(data_dir, negatives=False):
+    meta_data_dict = unpickle(data_dir + "/batches.meta")
+    cifar_label_names = meta_data_dict[b'label_names']
+    cifar_label_names = np.array(cifar_label_names)
+
+    # training data
+    cifar_train_data = None
+    cifar_train_filenames = []
+    cifar_train_labels = []
+
+    cifar_train_data_dict = unpickle(data_dir + "/data_batch_1")
+    cifar_train_data = cifar_train_data_dict[b'data']
+    #else:
+    #    cifar_train_data = np.vstack((cifar_train_data, cifar_train_data_dict[b'data']))
+    cifar_train_filenames += cifar_train_data_dict[b'filenames']
+    cifar_train_labels += cifar_train_data_dict[b'labels']
+
+    cifar_train_data = cifar_train_data.reshape((len(cifar_train_data), 3, 32, 32))
+    if negatives:
+        cifar_train_data = cifar_train_data.transpose(0, 2, 3, 1).astype(np.float32)
+    else:
+        cifar_train_data = np.rollaxis(cifar_train_data, 1, 4)
+    cifar_train_filenames = np.array(cifar_train_filenames)
+    cifar_train_labels = np.array(cifar_train_labels)
+
+    # validation
+    cifar_val_data = None
+    cifar_val_filenames = []
+    cifar_val_labels = []
+
+    cifar_val_data_dict = unpickle(data_dir + "/data_batch_2")
+    cifar_val_data = cifar_val_data_dict[b'data']
+    #else:
+    #    cifar_train_data = np.vstack((cifar_train_data, cifar_train_data_dict[b'data']))
+    cifar_val_filenames += cifar_val_data_dict[b'filenames']
+    cifar_val_labels += cifar_val_data_dict[b'labels']
+
+    cifar_val_data = cifar_val_data.reshape((len(cifar_val_data), 3, 32, 32))
+    if negatives:
+        cifar_val_data = cifar_val_data.transpose(0, 2, 3, 1).astype(np.float32)
+    else:
+        cifar_val_data = np.rollaxis(cifar_val_data, 1, 4)
+    cifar_val_filenames = np.array(cifar_val_filenames)
+    cifar_val_labels = np.array(cifar_val_labels)
+
+    cifar_test_data_dict = unpickle(data_dir + "/test_batch")
+    cifar_test_data = cifar_test_data_dict[b'data']
+    cifar_test_filenames = cifar_test_data_dict[b'filenames']
+    cifar_test_labels = cifar_test_data_dict[b'labels']
+
+    cifar_test_data = cifar_test_data.reshape((len(cifar_test_data), 3, 32, 32))
+    if negatives:
+        cifar_test_data = cifar_test_data.transpose(0, 2, 3, 1).astype(np.float32)
+    else:
+        cifar_test_data = np.rollaxis(cifar_test_data, 1, 4)
+    cifar_test_filenames = np.array(cifar_test_filenames)
+    cifar_test_labels = np.array(cifar_test_labels)
+
+    # fix shapes and values of data
+    N = 10000
+    cifar_train_data = np.reshape(cifar_train_data, (N, 32*32*3))
+    cifar_train_data = cifar_train_data / 255.
+    cifar_val_data = np.reshape(cifar_val_data, (N, 32*32*3))
+    cifar_val_data = cifar_val_data / 255.
+    cifar_test_data = np.reshape(cifar_test_data, (N, 32*32*3))
+    cifar_test_data = cifar_test_data / 255.
+
+    # one-hot encodings
+    train_onehot = np.zeros((N, 10))
+    train_onehot[np.arange(N), cifar_train_labels] = 1
+    val_onehot = np.zeros((N, 10))
+    val_onehot[np.arange(N), cifar_val_labels] = 1
+    test_onehot = np.zeros((N, 10))
+    test_onehot[np.arange(N), cifar_test_labels] = 1
+
+    return cifar_train_data, cifar_train_filenames, cifar_train_labels, train_onehot.T, \
+        cifar_val_data, cifar_val_filenames, cifar_val_labels, val_onehot.T, \
+        cifar_test_data, cifar_test_filenames, cifar_test_labels, cifar_label_names, test_onehot.T
+
 def load_cifar_10_data(data_dir, N_val, negatives=False):
     """
     Return train_data, train_filenames, train_labels, test_data, test_filenames, test_labels
@@ -364,6 +443,58 @@ class Net:
         k = np.argmax(P.T, axis=1)
         return np.sum(k == y) / N
 
+    # for batchnorm atm
+    def compute_gradients_num(self, X, Y, lam):
+        grads_W = []
+        grads_b = []
+        grads_gam = []
+        grads_beta = []
+
+        h = np.float64(1e-7)
+        for l in range(self.n_layers):
+            # weights
+            old_w = self.W(l)
+            self.params['W'+str(l)] = old_w + h 
+            cost1 = self.compute_cost(X, Y, lam)
+            self.params['W'+str(l)] = old_w - h 
+            cost2 = self.compute_cost(X, Y, lam)
+            self.params['W'+str(l)] = old_w
+            grad_W = (cost1-cost2) / (2*h)
+            grads_W.append(grad_W)
+            # bias
+            #self.params['b'+str(l)] = self.initb(l)
+            old_b = self.b(l)
+            self.params['b'+str(l)] = old_b + h 
+            cost1 = self.compute_cost(X, Y, lam)
+            self.params['b'+str(l)] = old_b - h 
+            cost2 = self.compute_cost(X, Y, lam)
+            self.params['b'+str(l)] = old_b
+            grad_b = (cost1-cost2) / (2*h)
+            grads_b.append(grad_b)
+
+        for l in range(self.n_layers - 1):
+            #self.params['gam'+str(l)] = self.initgamma(l)
+            old_gam = self.gam(l)
+            self.params['gam'+str(l)] = old_gam + h 
+            cost1 = self.compute_cost(X, Y, lam)
+            self.params['gam'+str(l)] = old_gam - h 
+            cost2 = self.compute_cost(X, Y, lam)
+            self.params['gam'+str(l)] = old_gam
+            grad_gam = (cost1-cost2) / (2*h)
+            grads_gam.append(grad_gam)
+            #self.params['beta'+str(l)] = self.initbeta(l)
+            old_beta = self.beta(l)
+            self.params['beta'+str(l)] = old_beta + h 
+            cost1 = self.compute_cost(X, Y, lam)
+            self.params['beta'+str(l)] = old_beta - h 
+            cost2 = self.compute_cost(X, Y, lam)
+            self.params['beta'+str(l)] = old_beta
+            grad_beta = (cost1-cost2) / (2*h)
+            grads_beta.append(grad_beta)
+
+
+        return grads_W, grads_b, grads_gam, grads_beta
+
     # Y is one hot (K,N)
     def compute_gradients(self, X, Y, lam):
         N = X.shape[1]
@@ -490,6 +621,8 @@ class Net:
             return grads_W, grads_b, grads_gam, grads_beta
         return grads_W, grads_b
     
+    
+
     # X: cols are data points
     def training(self, X,Y,X_val, Y_val, lam=0, n_batch=100, n_epochs=20,
             eta_min=1e-5, eta_max=1e-1,n_s=500, print_epoch=5):
@@ -570,24 +703,84 @@ class Net:
                 print("Epoch {} ; traincost: {} ; valcost: {}".format(epoch, costtrain, costval))
         return costs_train, costs_val
 
-    def compare_grad(self,X,Y, lam):
-        P = self.forward(X)
-        grad_W, grad_b = self.compute_gradients(X, Y, lam)
-        h = 1e-6
-        grad_Wnum, grad_bnum = ComputeGradsNumSlow(X, Y, P, self.W, self.b, lam, h)
-        '''
-        print(grad_W.shape)
-        print(grad_b.shape)
-        print(grad_Wnum.shape)
-        print(grad_bnum.shape)
-        '''
-        errW = np.abs(grad_W - grad_Wnum) / np.max(1e-6, np.abs(grad_W)+np.abs(grad_Wnum))
-        errb = np.abs(grad_b - grad_bnum) / np.max(1e-6, np.abs(grad_b)+np.abs(grad_bnum))
-        return errW, errb
 
+# ------- END CLASS
+
+# compare numerical and analytical gradient with one cifar batch
+def check_grads(cifar_10_dir):
+    print("Checking gradients....")
+    train_data, train_filenames, train_labels, train_onehot,\
+    val_data, val_filenames, val_labels, val_onehot,\
+    test_data, test_filenames, test_labels, label_names, test_onehot = \
+        load_cifar_10_data_onebatch(cifar_10_dir)
+
+    # preprocess
+    mean_train = np.mean(train_data)
+    std_train = np.std(train_data)
+    train_data = train_data - mean_train
+    train_data = train_data / std_train
+    train_data = train_data.T
+    print("train dat shape: ", train_data.shape)
+    print("train labesl shape: ", train_labels.shape)
+
+
+    Xbatch = train_data[:, 5:15]
+    Ybatch = train_labels[5:15]
+    K = 10 # classes
+    d = 3072 # input dim
+    dims = [d,50,50,K] 
+    net = Net(dims, batchnorm = True)
+    lam = 0
+
+    # analytical
+    grads_an = net.compute_gradients(Xbatch,Ybatch,lam)
+    # numerical
+    grads_num = net.compute_gradients_num(Xbatch,Ybatch,lam)
+    print("comparing...")
+    compare_grads(grads_an, grads_num, net.n_layers)
+
+# get max relative err between analytical and num grads
+# assumes batch norm
+def compare_grads(grads_an, grads_num, n_layers):
+    grads_W_an, grads_b_an, grads_gam_an, grads_beta_an = grads_an
+    grads_W_num, grads_b_num, grads_gam_num, grads_beta_num = grads_num
+
+    for l in range(n_layers):
+        # weights
+        wstr = 'W'+str(l)
+        w_err = graddiff(wstr, grads_W_an[l], grads_W_num[l])
+        print("param {}, max rel err: {}".format(wstr, w_err))
+        # bias
+        bstr = 'b'+str(l)
+        b_err = graddiff(bstr, grads_b_an[l], grads_b_num[l])
+        print("param {}, max rel err: {}".format(bstr, b_err))
+            
+    for l in range(n_layers - 1):
+        # gamma
+        gamstr = 'gam'+str(l)
+        gam_err = graddiff(gamstr, grads_gam_an[l], grads_gam_num[l])
+        print("param {}, max rel err: {}".format(gamstr, gam_err))
+        # beta
+        betastr = 'beta'+str(l)
+        beta_err = graddiff(betastr, grads_beta_an[l], grads_beta_num[l])
+        print("param {}, max rel err: {}".format(betastr, beta_err))
+    print("finito...")
+
+
+def graddiff(paramstr, grad_an, grad_num):
+    n = abs(grad_an.flat[:] - grad_num.flat[:])
+    d = np.asarray([max(abs(fa), 1e-10+abs(fn)) for fa,fn in \
+            zip(grad_an.flat[:], grad_num.flat[:])])
+    # get the maxium error relative
+    return max(n / d)
+            
 
 def main():
+    np.random.seed(400)
     cifar_10_dir = 'Dataset/cifar-10-batches-py'
+
+    check_grads(cifar_10_dir)
+    return
 
     N_val = 5000
 
@@ -613,7 +806,7 @@ def main():
     # Pre-process
     mean_train = np.mean(train_data)
     std_train = np.std(train_data)
-    print("mean, std of train: ", mean_train, " ; ", std_train)
+    #print("mean, std of train: ", mean_train, " ; ", std_train)
     train_data = train_data - mean_train
     train_data = train_data / std_train
     val_data = val_data - mean_train
@@ -625,7 +818,6 @@ def main():
     val_data = val_data.T
     test_data = test_data.T
 
-    np.random.seed(400)
     
     ###### TRAINING #####
 
@@ -633,17 +825,21 @@ def main():
     N = train_data.shape[0]
     n_batch=100
     #n_batch=50
-    n_epochs=21
+    #n_epochs=21
+    n_epochs = 30
 
-    # Lambda search 
-    l_min = -7
-    l_max = -5
-    n_lambdas = 6
+    # LAMBDAS search 
+    #l_middle = np.log10(0.004730593550311557)
+    #l_min = -5
+    #l_min = l_middle - 0.5
+    #l_max = -1
+    #l_max = l_middle + 0.5
+    #n_lambdas = 6
     #lambdas = np.power(10,np.random.uniform(low=l_min,high=l_max,size=(n_lambdas,)))
-    lambdas = [0.005]
+    lambdas = [0.006976611574964777]
 
     # Cyclic Learning rate
-    epochs_per_cycle = 2
+    #epochs_per_cycle = 2
     #n_s = epochs_per_cycle*np.floor(N / n_batch)
     n_s =  5*45000 / n_batch
     eta_min = 1e-5
@@ -652,21 +848,26 @@ def main():
     # Network params
     K = 10 # classes
     d = 3072 # input dim
-    #dims = [d,50,50,K] 
-    dims = [d,50,30,20,20,10,10,10,10,K] 
+    dims = [d,50,50,K] 
+    #dims = [d,50,30,20,20,10,10,10,10,K] 
     #m = 130 # hid
 
     # changes during lambda search
-    best_val = -1 
+    best_valcost = 10000
+    best_valacc = -1
+    best_testacc = -1
     best_lam = lambdas[0]
     best_net = 0
-    nets = []
+    #nets = []
+    best_trainloss = []
+    best_valloss = []
 
     # LOOP TRAIN
     for lidx, lam in enumerate(lambdas):
         print("----")
         print("Trying lambda: ", lam)
         net = Net(dims, batchnorm = True)
+        
         #net = Net(dims)
 
         #net.print_params_shape()
@@ -689,34 +890,40 @@ def main():
             n_s = n_s,
             print_epoch = 3,
         )
-        nets.append(copy(net))
+        
+
+        #nets.append(copy(net))
+        last_valcost = costs_val[-1]
         val_acc = net.compute_accuracy(val_data, val_labels)
+        test_acc = net.compute_accuracy(test_data, test_labels)
 
                  
         # print and log stuff
-        last_valcost = costs_val[-1]
-        print("DONE lam {}, valcost {}, valacc {}"\
-                .format(lam, last_valcost, val_acc))
+        print("DONE lam {}, valcost {}, valacc {}, testacc {}"\
+                .format(lam, last_valcost, val_acc, test_acc))
         with open("lambdas.txt","a") as f:
-            f.write("lam {}, val_cost {}, val_acc\n"\
-                    .format(lam, last_valcost, val_acc))
+            f.write("lam {}, val_cost {}, val_acc {}, test_acc {}\n"\
+                    .format(lam, last_valcost, val_acc, test_acc))
 
         # check if better than previous lambdas
         #if  last_valcost < val_cost:
-        if val_acc > best_val:
+        if val_acc > best_valacc:
             best_valacc = val_acc
             best_net = lidx 
             best_valcost = last_valcost
             best_lam = lam
+            best_testacc = test_acc
+            best_trainloss = costs_train
+            best_valloss = costs_val
 
     # print and log test acc for the best
-    test_acc = nets[best_net].compute_accuracy(test_data, test_labels)
+    #test_acc = nets[best_net].compute_accuracy(test_data, test_labels)
     print(" ------")
-    print("BEST lam #{}: {}, test acc {}"\
-            .format(best_net,best_lam, test_acc))
+    print("BEST VALIDATION lam #{}: {}, test acc {}"\
+            .format(best_net,best_lam, best_testacc))
     with open("lambdas.txt","a") as f:
-        f.write("best lam #{}: {}, test acc {}\n"\
-                .format(best_net, lam, test_acc))
+        f.write("best validation lam #{}: {}, test acc {}\n---------\n"\
+                .format(best_net, lam, best_testacc))
 
     # plot the validation and train errs
     fig = plt.figure()
@@ -726,8 +933,8 @@ def main():
     )
     plt.xlabel('epoch', fontsize=14)
     plt.ylabel('cost', fontsize=14)
-    plt.plot(costs_train, 'r')
-    plt.plot(costs_val, 'g')
+    plt.plot(best_trainloss, 'r')
+    plt.plot(best_valloss, 'g')
     plt.show()
 
 

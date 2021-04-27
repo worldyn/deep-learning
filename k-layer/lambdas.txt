@@ -1,35 +1,29 @@
 
-lam 0, val_cost 1.4898415813806358, val_acc
-best lam #0: 0, test acc 0.4836
-lam 0.001, val_cost 1.5236566064898616, val_acc
-best lam #0: 0.001, test acc 0.4908
-lam 0.001, val_cost 1.4584945998812953, val_acc
-best lam #0: 0.001, test acc 0.5071
-lam 0.005, val_cost 1.5218012606642046, val_acc
-best lam #0: 0.005, test acc 0.5102
-lam 0.005, val_cost 1.4789465521117138, val_acc
-best lam #0: 0.005, test acc 0.5184
-lam 0.005, val_cost 1.5059530516925692, val_acc
-best lam #0: 0.005, test acc 0.506
-lam 0.005, val_cost 1.471583896633642, val_acc
-best lam #0: 0.005, test acc 0.5241
-lam 0.005, val_cost 1.7162886699633382, val_acc
-best lam #0: 0.005, test acc 0.4595
-lam 0.005, val_cost 1.3726834564768942, val_acc
-best lam #0: 0.005, test acc 0.5282
-lam 0.005, val_cost 1.4727438650311073, val_acc
-best lam #0: 0.005, test acc 0.4797
-lam 0.005, val_cost 1.384472967412662, val_acc
-best lam #0: 0.005, test acc 0.5297
-lam 0.005, val_cost 1.5011191008937064, val_acc
-best lam #0: 0.005, test acc 0.5234
-lam 0.005, val_cost 1.3557029548318524, val_acc
-best lam #0: 0.005, test acc 0.5321
-lam 0.005, val_cost 1.4719890641929172, val_acc
-best lam #0: 0.005, test acc 0.5297
-lam 0.005, val_cost 1.7379243687733363, val_acc
-best lam #0: 0.005, test acc 0.471
-lam 0.005, val_cost 1.4565140072901628, val_acc
-best lam #0: 0.005, test acc 0.5185
-lam 0.005, val_cost 1.4901181996208193, val_acc
-best lam #0: 0.005, test acc 0.5036
+lam 0.004730593550311557, val_cost 1.4268933300730617, val_acc 0.5294
+lam 8.016667670906462e-05, val_cost 1.3857958696397112, val_acc 0.5142
+lam 0.02736496930759846, val_cost 1.4785231220813497, val_acc 0.5178
+lam 0.00014506936164457583, val_cost 1.401140268657108, val_acc 0.52
+lam 3.9161860546251554e-05, val_cost 1.3811730469900454, val_acc 0.526
+lam 1.117361109025311e-05, val_cost 1.374136621056653, val_acc 0.5198
+best lam #5: 1.117361109025311e-05, test acc 0.5094
+lam 1.117361109025311e-05, val_cost 1.3501973493740753, val_acc 0.5262
+lam 3.9161860546251554e-05, val_cost 1.3678467005954287, val_acc 0.5216
+lam 0.004730593550311557, val_cost 1.4045013299519502, val_acc 0.528
+best lam #2: 0.004730593550311557, test acc 0.5216
+lam 3.9161860546251554e-05, val_cost 1.3538564539999773, val_acc 0.5274
+best lam #0: 3.9161860546251554e-05, test acc 0.5174
+
+1. lam 0.006976611574964777, val_cost 1.3805690477911516, val_acc 0.5494, test_acc 0.5369
+# lam 0.0025171790320010915, val_cost 1.380635996303155, val_acc 0.5426, test_acc 0.5329
+# lam 0.010819679010927064, val_cost 1.3796766738223405, val_acc 0.5396, test_acc 0.5342
+3. lam 0.002919507265247426, val_cost 1.38879228920564, val_acc 0.543, test_acc 0.533
+2. lam 0.0021044153670523344, val_cost 1.3913280117116793, val_acc 0.5464, test_acc 0.5258
+# lam 0.001538027225168445, val_cost 1.4053672025731374, val_acc 0.542, test_acc 0.5238
+best validation lam #0: 0.001538027225168445, test acc 0.5369
+
+lam 0.006976611574964777, val_cost 1.351515102770676, val_acc 0.5552, test_acc 0.5378
+best validation lam #0: 0.006976611574964777, test acc 0.5378
+---------
+lam 0.006976611574964777, val_cost 1.4712881802007698, val_acc 0.5208, test_acc 0.5201
+best validation lam #0: 0.006976611574964777, test acc 0.5201
+---------
