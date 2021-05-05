@@ -399,26 +399,26 @@ def main():
     np.random.seed(400)
     
     # TRAINING
-    N = train_data.shape[0]
+    N = train_data.shape[1]
+    print("NNNNNN ",N)
     n_batch=100
     #n_batch=50
-    #n_epochs=7
-    n_epochs=16 * 3
     #lam=0.01
 
-    l_min = -7
-    l_max = -5
-    n_lambdas = 8
-    lambdas = np.power(10,np.random.uniform(low=l_min,high=l_max,size=(n_lambdas,)))
-    #lambdas = [1.117361109025311e-05]
+    #l_min = -7
+    #l_max = -5
+    l_min = -8
+    l_max = -6
+    n_lambdas = 6
+    #lambdas = np.power(10,np.random.uniform(low=l_min,high=l_max,size=(n_lambdas,)))
+    lambdas = [2.1749927701745497e-07]
     #lambdas = [1.0e-03]
     #lambdas = [0.0008]
-    lambdas = [0.01]
+    #lambdas = [0.01]
 
-    #n_s = 2*np.floor(N / n_batch)
-    n_s = 800 
-    print("train N: ",N)
-    print("iterations per cycle, n_s: ", n_s) # always 2 epochs per cycle
+    n_epochs=4 * 3
+    n_s = 2*np.floor(N / n_batch)
+    #n_s = 800 
     #n_s = 800
     eta_min = 1e-5
     eta_max = 1e-1
@@ -436,10 +436,6 @@ def main():
     for lam in lambdas:
         print("Trying lambda: ", lam)
         net = Net2(d,m,K)
-        print("W1: ", net.W1.shape)
-        print("b1: ", net.b1.shape)
-        print("W2: ", net.W2.shape)
-        print("b2: ", net.b2.shape)
         costs_train, costs_val = net.training(
             train_data,
             train_onehot,
