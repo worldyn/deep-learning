@@ -27,3 +27,27 @@ best validation lam #0: 0.006976611574964777, test acc 0.5378
 lam 0.006976611574964777, val_cost 1.4712881802007698, val_acc 0.5208, test_acc 0.5201
 best validation lam #0: 0.006976611574964777, test acc 0.5201
 ---------
+lam 0.006976611574964777, val_cost 1.6161882772009046, val_acc 0.5084, test_acc 0.5006
+best validation lam #0: 0.006976611574964777, test acc 0.5006
+---------
+lam 0.006976611574964777, val_cost 2.302751736524305, val_acc 0.0958, test_acc 0.1
+best validation lam #0: 0.006976611574964777, test acc 0.1
+---------
+lam 0.006976611574964777, val_cost 2.302751736524305, val_acc 0.0958, test_acc 0.1
+best validation lam #0: 0.006976611574964777, test acc 0.1
+---------
+lam 0.006976611574964777, val_cost 1.6161882772009046, val_acc 0.5084, test_acc 0.5006
+best validation lam #0: 0.006976611574964777, test acc 0.5006
+---------
+lam 0.006976611574964777, val_cost 2.3027446734604817, val_acc 0.0958, test_acc 0.1
+best validation lam #0: 0.006976611574964777, test acc 0.1
+---------
+lam 0.006976611574964777, val_cost 1.4852166799252162, val_acc 0.527, test_acc 0.5215
+best validation lam #0: 0.006976611574964777, test acc 0.5215
+---------
+lam 0.006976611574964777, val_cost 1.399220347674769, val_acc 0.5312, test_acc 0.5259
+best validation lam #0: 0.006976611574964777, test acc 0.5259
+---------
+lam 0.006976611574964777, val_cost 1.4258422913124915, val_acc 0.5282, test_acc 0.5204
+best validation lam #0: 0.006976611574964777, test acc 0.5204
+---------

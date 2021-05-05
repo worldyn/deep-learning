@@ -360,9 +360,9 @@ def main():
 
     # TRAINING
     eta = 0.001
-    lam=0.1
+    lam=0
     n_batch=100
-    n_epochs=80
+    n_epochs=100
     costs_train, costs_val = net.training(
         train_data,
         train_onehot,

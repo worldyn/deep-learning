@@ -311,7 +311,10 @@ class Net:
         # W: outdim x indim
         # b: outdim x 1
         for l in range(self.n_layers):
-            self.params['W'+str(l)] = self.he_initW(l)
+            #self.params['W'+str(l)] = self.he_initW(l)
+            mu = 0
+            sig = 1e-4
+            self.params['W'+str(l)] = self.rand_initW(l,mu,sig)
             self.params['b'+str(l)] = self.initb(l)
         if batchnorm:
             for l in range(self.n_layers - 1):
@@ -333,9 +336,9 @@ class Net:
         return np.random.randn(self.dims[layer+1], self.dims[layer]) * \
                 np.sqrt(2./self.dims[layer])
 
-    def rand_initW(self, layer):
+    def rand_initW(self, layer, mean, sig):
         return np.random.normal(
-            0,0.1, 
+            mean,sig, 
             (self.dims[layer+1], self.dims[layer])
         )
 
@@ -443,12 +446,15 @@ class Net:
         k = np.argmax(P.T, axis=1)
         return np.sum(k == y) / N
 
+    #def compute_grad_num(self, paramstr, X, Y, lam)
+
     # for batchnorm atm
     def compute_gradients_num(self, X, Y, lam):
         grads_W = []
         grads_b = []
-        grads_gam = []
-        grads_beta = []
+        if self.batchnorm:
+            grads_gam = []
+            grads_beta = []
 
         h = np.float64(1e-7)
         for l in range(self.n_layers):
@@ -472,28 +478,30 @@ class Net:
             grad_b = (cost1-cost2) / (2*h)
             grads_b.append(grad_b)
 
-        for l in range(self.n_layers - 1):
-            #self.params['gam'+str(l)] = self.initgamma(l)
-            old_gam = self.gam(l)
-            self.params['gam'+str(l)] = old_gam + h 
-            cost1 = self.compute_cost(X, Y, lam)
-            self.params['gam'+str(l)] = old_gam - h 
-            cost2 = self.compute_cost(X, Y, lam)
-            self.params['gam'+str(l)] = old_gam
-            grad_gam = (cost1-cost2) / (2*h)
-            grads_gam.append(grad_gam)
-            #self.params['beta'+str(l)] = self.initbeta(l)
-            old_beta = self.beta(l)
-            self.params['beta'+str(l)] = old_beta + h 
-            cost1 = self.compute_cost(X, Y, lam)
-            self.params['beta'+str(l)] = old_beta - h 
-            cost2 = self.compute_cost(X, Y, lam)
-            self.params['beta'+str(l)] = old_beta
-            grad_beta = (cost1-cost2) / (2*h)
-            grads_beta.append(grad_beta)
+        if self.batchnorm:
+            for l in range(self.n_layers - 1):
+                #self.params['gam'+str(l)] = self.initgamma(l)
+                old_gam = self.gam(l)
+                self.params['gam'+str(l)] = old_gam + h 
+                cost1 = self.compute_cost(X, Y, lam)
+                self.params['gam'+str(l)] = old_gam - h 
+                cost2 = self.compute_cost(X, Y, lam)
+                self.params['gam'+str(l)] = old_gam
+                grad_gam = (cost1-cost2) / (2*h)
+                grads_gam.append(grad_gam)
+                #self.params['beta'+str(l)] = self.initbeta(l)
+                old_beta = self.beta(l)
+                self.params['beta'+str(l)] = old_beta + h 
+                cost1 = self.compute_cost(X, Y, lam)
+                self.params['beta'+str(l)] = old_beta - h 
+                cost2 = self.compute_cost(X, Y, lam)
+                self.params['beta'+str(l)] = old_beta
+                grad_beta = (cost1-cost2) / (2*h)
+                grads_beta.append(grad_beta)
 
-
-        return grads_W, grads_b, grads_gam, grads_beta
+        if self.batchnorm:
+            return grads_W, grads_b, grads_gam, grads_beta
+        return grads_W, grads_b
 
     # Y is one hot (K,N)
     def compute_gradients(self, X, Y, lam):
@@ -729,7 +737,9 @@ def check_grads(cifar_10_dir):
     K = 10 # classes
     d = 3072 # input dim
     dims = [d,50,50,K] 
-    net = Net(dims, batchnorm = True)
+    #dims = [d,50,K] 
+    #net = Net(dims, batchnorm = True)
+    net = Net(dims, batchnorm = False)
     lam = 0
 
     # analytical
@@ -742,8 +752,10 @@ def check_grads(cifar_10_dir):
 # get max relative err between analytical and num grads
 # assumes batch norm
 def compare_grads(grads_an, grads_num, n_layers):
-    grads_W_an, grads_b_an, grads_gam_an, grads_beta_an = grads_an
-    grads_W_num, grads_b_num, grads_gam_num, grads_beta_num = grads_num
+    #grads_W_an, grads_b_an, grads_gam_an, grads_beta_an = grads_an
+    #grads_W_num, grads_b_num, grads_gam_num, grads_beta_num = grads_num
+    grads_W_an, grads_b_an = grads_an
+    grads_W_num, grads_b_num = grads_num
 
     for l in range(n_layers):
         # weights
@@ -755,6 +767,7 @@ def compare_grads(grads_an, grads_num, n_layers):
         b_err = graddiff(bstr, grads_b_an[l], grads_b_num[l])
         print("param {}, max rel err: {}".format(bstr, b_err))
             
+    '''
     for l in range(n_layers - 1):
         # gamma
         gamstr = 'gam'+str(l)
@@ -764,6 +777,7 @@ def compare_grads(grads_an, grads_num, n_layers):
         betastr = 'beta'+str(l)
         beta_err = graddiff(betastr, grads_beta_an[l], grads_beta_num[l])
         print("param {}, max rel err: {}".format(betastr, beta_err))
+    '''
     print("finito...")
 
 
@@ -778,9 +792,6 @@ def graddiff(paramstr, grad_an, grad_num):
 def main():
     np.random.seed(400)
     cifar_10_dir = 'Dataset/cifar-10-batches-py'
-
-    check_grads(cifar_10_dir)
-    return
 
     N_val = 5000
 
@@ -826,7 +837,6 @@ def main():
     n_batch=100
     #n_batch=50
     #n_epochs=21
-    n_epochs = 30
 
     # LAMBDAS search 
     #l_middle = np.log10(0.004730593550311557)
@@ -841,9 +851,11 @@ def main():
     # Cyclic Learning rate
     #epochs_per_cycle = 2
     #n_s = epochs_per_cycle*np.floor(N / n_batch)
-    n_s =  5*45000 / n_batch
+    #n_s =  5*45000 / n_batch
+    n_s =  2*45000 / n_batch
     eta_min = 1e-5
     eta_max = 1e-1
+    n_epochs = 8
 
     # Network params
     K = 10 # classes
