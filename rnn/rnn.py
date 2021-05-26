@@ -71,6 +71,13 @@ class RNN:
         self.idx2char = char2idx
         self.vocab_size = K 
 
+        # adagrads params (save in case you run training several times)
+        self.m_U = np.zeros((m, K))
+        self.m_W = np.zeros((m, m))
+        self.m_V = np.zeros((K, m))
+        self.m_b = np.zeros((m, 1))
+        self.m_c = np.zeros((K, 1))
+
     def char_to_onehot(self, char):
         """
         input: a character
@@ -89,11 +96,11 @@ class RNN:
         idx = np.argwhere(onehot_vect == 1)[0][1]
         return self.idx2char[idx]
 
-    def forward(self, X):
+    def forward(self, X, hprev):
         """
         X: [x1,x2,...xt], each x column one-hot vectors
         """
-        h_t = np.zeros((self.m,1)) # set to initial h_0
+        h_t = hprev 
         T = X.shape[1]
         A = np.zeros((self.m, T)) # activation inputs
         H = np.zeros((self.m, T)) # hidden states
@@ -111,7 +118,7 @@ class RNN:
             P[:,t] = p_t.reshape(self.K)
         return P, H, A
 
-    def compute_cost(self,P,Y):
+    def compute_loss(self,P,Y):
         # P (K, num_steps) probs for each character at each time step
         # Y (K, num_steps) one hots for every row
         T = P.shape[1] 
@@ -156,45 +163,99 @@ class RNN:
         grads_W = []
         grads_b = []
 
+    def update_param(self, m, grad, lr) 
+        # updates with adagrad
+        # return: value to substract from parameter
+        eps = np.finfo('float').eps
+        return (lr / np.sqrt(m + eps)) * grad 
+
     def training(self, book_data, lr=0.1, epochs=2, print_loss=100,
-            print_generate=10000)
+            print_generate=500)
         N = len(book_data)
         n_sequences = math.floor(N / self.seq_max_length)
 
         it = 0
+        losses = []
+        smooth_loss = 0
 
         # EPOCHS
         for epoch in tqdm(range(epochs)):
+            print("Epoch: ", epoch)
             e = 0 # 0-indexed in python, no matlab here :)
-            h0 = np.zeros((self.m,1))
+            hprev = np.zeros((self.m,1)) # init to h0
+
             # ITERATING EACH SEQUENCE i
             for i in range(n_sequences):
-                # (K,seq_max_len)
-                X_chars = book_data[e:e+self.seq_max_length]
-                X = 
-                # (K,seq_max_len)
-                Y_chars = book_data[e+1:e+self.seq_max_length+1] 
+                # extract sentence input and label
+                X_chars = book_data[e : e+self.seq_max_length]
+                X = np.zeros((self.K, self.seq_max_length),dtype=int)
+                Y_chars = book_data[e+1 : e+self.seq_max_length+1] 
+                Y = np.zeros((self.K, self.seq_max_length),dtype=int)
+
+                # fill in one-hot encodings
+                for j in range(self.seq_max_length):
+                    X[:,j] = self.char_to_onehot(X_chars[j]) 
+                    Y[:,j] = self.char_to_onehot(Y_chars[j]) 
+
+                # forward pass!
+                P, H, A = self.forward(X, hprev)
+                # hidden for label indexes
+                H0 = np.zeros((self.m, len(X_chars)))
+                H0[:, [0]] = self.h0
+                H0[:, 1:] = H1[:, :-1]
+
+                loss = self.compute_loss(P,Y) 
+                if smooth_loss == 0:
+                    smooth_loss = loss
+                else:
+                    smooth_loss = .999 * smooth_loss + .001 * loss
+
+                # backprop (saves grads as class variables)
+                self.compute_gradients(P, X, Y, H, H0, A)
+
+                # updates with adagrad: 
+                # m_param += g*g
+                # update_param(m, grad, lr)
+                self.m_U += self.grad_U * self.grad_U 
+                self.U -= self.update_param(m_U, self.grad_U, lr)
+
+                self.m_W += self.grad_W * self.grad_W
+                self.W -= self.update_param(m_W, self.grad_W, lr)
+
+                self.m_V += self.grad_V * self.grad_V
+                self.V -= self.update_param(m_V, self.grad_V, lr)
+
+                self.m_b += self.grad_b * self.grad_b
+                self.b -= self.update_param(m_b, self.grad_b, lr)
+
+                self.m_c += self.grad_c * self.grad_c
+                self.c -= self.update_param(m_c, self.grad_c, lr)
+
+                hprev = H1[:, -1]
+                hprev = H1[:,-1].reshape(self.m,1)
+
+                # save best model TODO
                 
-                # TODO
-                grads_W, grads_b = \
-                    self.compute_gradients(Xbatch,Ybatch,lam)
+                # save and print loss info 
+                if it % print_loss == 0:
+                    losses.append(smooth_loss)
+                    print("Iteration {}, s.loss {}".format(it, smooth_loss)
 
-                # UPDATES TODO
-                gradw = grads_W[self.n_layers-1-l]
-                self.params["W"+str(l)] -= \
-                    eta * gradw 
-            
-            # save loss TODO
-            costtrain = self.compute_cost(X, Y, lam)
-            costs_train.append(costtrain)
-        
-            # save best model TODO
-            
-            # print loss info TODO
-            if epoch % print_epoch == 0:
-                #print("Epoch {} ; traincost: {} ; valcost: {}".format(epoch, costtrain, costval))
+                # print generation
+                if it % print_generate == 0:
+                    n_generate = 200
+                    x0 = X[:,0].reshape(self.K,1)
+                    Y_gen = self.generate(x0, hprev, n_generate)
 
-            # print generation TODO
+                    # build sentence string
+                    gen_sentence = ""
+                    for j in range(Y_gen.shape[1]):
+                        y = Y_gen[:,j].reshape(self.K,1)
+                        gen_sentence += self.onehot_to_char(y.T)
+                    print(gen_sentence)
+
+                it += 1
+                e += self.seq_max_length
 
         # TODO what to return?
         return costs_train, costs_val
@@ -223,6 +284,8 @@ def main():
         epochs = epochs
     )
     """
+
+    # TODO generate 1000 character from best model
     
 if __name__ == "__main__":
     main()
