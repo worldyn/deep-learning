@@ -6,6 +6,7 @@ from scipy.stats import mode
 from copy import deepcopy,copy
 import sys
 from collections import OrderedDict
+import math
 
 def softmax(x):
     """ Standard definition of the softmax function """
@@ -44,11 +45,11 @@ def get_data(filename):
 class RNN:
     # m: hidden dim
     # K: vocab size 
-    def __init__(self, m, K, char2idx, idx2char, seq_length=25):
+    def __init__(self, m, K, char2idx, idx2char, seq_max_length=25):
         self.m = m
         self.d = K # in
         self.K = K # out
-        self.seq_length = 25
+        self.seq_max_length = 25
 
         # weights and biases
         sig = 0.01
@@ -92,7 +93,7 @@ class RNN:
         """
         X: [x1,x2,...xt], each x column one-hot vectors
         """
-        h_t = np.zeros((m,1)) # set to initial h_0
+        h_t = np.zeros((self.m,1)) # set to initial h_0
         T = X.shape[1]
         A = np.zeros((self.m, T)) # activation inputs
         H = np.zeros((self.m, T)) # hidden states
@@ -155,69 +156,64 @@ class RNN:
         grads_W = []
         grads_b = []
 
-    def training(self, X,Y,X_val, Y_val, lam=0, n_batch=100, n_epochs=20,
-            eta_min=1e-5, eta_max=1e-1,n_s=500, print_epoch=5):
-        pass
-        """
-        costs_train = []
-        costs_val = []
-        N = X.shape[1]
+    def training(self, book_data, lr=0.1, epochs=2, print_loss=100,
+            print_generate=10000)
+        N = len(book_data)
+        n_sequences = math.floor(N / self.seq_max_length)
 
-        t = 1
-        
-        for epoch in range(n_epochs):
-            # shuffle
-            permidx = np.random.permutation(N)
-            Xtrain = X[:,permidx]   
-            Ytrain = Y[:,permidx]   
+        it = 0
 
-            # TRAIN
-            for j in range(int(N / n_batch)):
-                # get batch
-                j_start = j*n_batch #inclusive start
-                j_end = (j+1)*n_batch # exclusive end
-                Xbatch = Xtrain[:, j_start:j_end]
-                Ybatch = Ytrain[:, j_start:j_end]
-
-                # get gradients, opposite order from last to first
+        # EPOCHS
+        for epoch in tqdm(range(epochs)):
+            e = 0 # 0-indexed in python, no matlab here :)
+            h0 = np.zeros((self.m,1))
+            # ITERATING EACH SEQUENCE i
+            for i in range(n_sequences):
+                # (K,seq_max_len)
+                X_chars = book_data[e:e+self.seq_max_length]
+                X = 
+                # (K,seq_max_len)
+                Y_chars = book_data[e+1:e+self.seq_max_length+1] 
+                
+                # TODO
                 grads_W, grads_b = \
                     self.compute_gradients(Xbatch,Ybatch,lam)
 
-                # UPDATES
-                for l in range(self.n_layers):
-                    gradw = grads_W[self.n_layers-1-l]
-                    #print("gradw {}, iter {}".format(gradw,j))
-                    self.params["W"+str(l)] -= \
-                            eta * gradw 
-                    gradb = grads_b[self.n_layers-1-l]
-                    #print("gradb {}, iter {}".format(gradb,j))
-                    self.params["b"+str(l)] -= \
-                            eta * gradb 
-            # save costs
+                # UPDATES TODO
+                gradw = grads_W[self.n_layers-1-l]
+                self.params["W"+str(l)] -= \
+                    eta * gradw 
+            
+            # save loss TODO
             costtrain = self.compute_cost(X, Y, lam)
             costs_train.append(costtrain)
-            costval = self.compute_cost(X_val, Y_val, lam)
-            costs_val.append(costval)
+        
+            # save best model TODO
             
-            # print epoch info
+            # print loss info TODO
             if epoch % print_epoch == 0:
-                print("Epoch {} ; traincost: {} ; valcost: {}".format(epoch, costtrain, costval))
+                #print("Epoch {} ; traincost: {} ; valcost: {}".format(epoch, costtrain, costval))
+
+            # print generation TODO
+
+        # TODO what to return?
         return costs_train, costs_val
-        """
 
 # ------- END CLASS
+
 def main():
     np.random.seed(400)
     filename = "goblet_book.txt"
     book_data, char2idx, idx2char, K = get_data(filename)
     print("char2idx: ", char2idx)
 
-    m = 100
     print("Initialising model...")
-    net = RNN(m, K, char2idx, idx2char)
+    m = 100
+    seq_max_length = 25
+    net = RNN(m, K, char2idx, idx2char,seq_max_length)
 
     lr = 0.1
-    epochs = 4
+    epochs = 2
 
     """
     print("Training beginning...")
