@@ -7,6 +7,7 @@ from copy import deepcopy,copy
 import sys
 from collections import OrderedDict
 import math
+from tqdm import tqdm
 
 def softmax(x):
     """ Standard definition of the softmax function """
@@ -39,8 +40,7 @@ def get_data(filename):
             idx2char[idx] = c
             idx += 1
         
-    num_chars = idx+1 # later set to K
-    return book_data, char2idx, idx2char, num_chars
+    return book_data, char2idx, idx2char
      
 class RNN:
     # m: hidden dim
@@ -68,7 +68,7 @@ class RNN:
 
         # char and idx mappings
         self.char2idx = char2idx
-        self.idx2char = char2idx
+        self.idx2char = idx2char 
         self.vocab_size = K 
 
         # adagrads params (save in case you run training several times)
@@ -77,6 +77,19 @@ class RNN:
         self.m_V = np.zeros((K, m))
         self.m_b = np.zeros((m, 1))
         self.m_c = np.zeros((K, 1))
+
+    
+    def weigths_dict(self):
+        return {"U": self.U, "W": self.W, 
+                "V": self.V, "b": self.b, "c": self.c}
+
+    def load_weigths(self, wd):
+        # wd: weigths dict as in weights_dict(self) above
+        self.U = wd["U"]
+        self.W = wd["W"]
+        self.V = wd["V"]
+        self.b = wd["b"]
+        self.c = wd["c"]
 
     def char_to_onehot(self, char):
         """
@@ -93,7 +106,7 @@ class RNN:
         input: one hot vector (1,K)
         output: related character to the onehot vector 
         """
-        idx = np.argwhere(onehot_vect == 1)[0][1]
+        idx = int(np.argwhere(onehot_vect == 1)[0][1])
         return self.idx2char[idx]
 
     def forward(self, X, hprev):
@@ -124,9 +137,9 @@ class RNN:
         T = P.shape[1] 
         loss = 0
         for i in range(T):
-            p_t = P[:,t].reshape(self.K,1) # probs for each char
-            y_t = Y[:,t].reshape(self.K,1) # char onehot label at time t
-            l_t += -np.log(np.dot(y_t.T,p_t)) # cross entropy loss
+            p_t = P[:,i].reshape(self.K,1) # probs for each char
+            y_t = Y[:,i].reshape(self.K,1) # char onehot label at time t
+            l_t = -np.log(np.dot(y_t.T,p_t)) # cross entropy loss
             loss += l_t
         return loss
     
@@ -141,9 +154,9 @@ class RNN:
             # x (K, 1) 
             # p (K, 1)
             # h (m, 1)
-            a_t = self.W @ h_t + self.U @ x_t + self.b # (m,1)
+            a_t = self.W @ h_n + self.U @ x_n + self.b # (m,1)
             h_t = tanh(a_t) # (m,1)
-            o_t = self.V @ h_t + self.c # (K,1)
+            o_t = self.V @ h_n + self.c # (K,1)
             p_t = softmax(o_t) # (K,1)
             choice_idx = np.random.choice(
                 a=self.K, 
@@ -157,26 +170,27 @@ class RNN:
             Y[:,n] = x_n.reshape(self.K)
         return Y
 
-    def compute_gradients(self, X, Y, lam):
-        N = X.shape[1]
-        K = Y.shape[0]
-        grads_W = []
-        grads_b = []
+    def compute_gradients(self, P, X, Y, H, H0, A):
+        pass
 
-    def update_param(self, m, grad, lr) 
+    def update_param(self, m, grad, lr):
         # updates with adagrad
         # return: value to substract from parameter
         eps = np.finfo('float').eps
         return (lr / np.sqrt(m + eps)) * grad 
 
-    def training(self, book_data, lr=0.1, epochs=2, print_loss=100,
-            print_generate=500)
+    def training(self, book_data, lr=0.1, epochs=2, print_loss=100, 
+            print_generate=500, logging = False):
         N = len(book_data)
         n_sequences = math.floor(N / self.seq_max_length)
 
         it = 0
         losses = []
         smooth_loss = 0
+
+        # keep track of best model
+        best_loss = 100000000
+        best_model = self.weigths_dict()
 
         # EPOCHS
         for epoch in tqdm(range(epochs)):
@@ -201,10 +215,10 @@ class RNN:
                 P, H, A = self.forward(X, hprev)
                 # hidden for label indexes
                 H0 = np.zeros((self.m, len(X_chars)))
-                H0[:, [0]] = self.h0
-                H0[:, 1:] = H1[:, :-1]
+                H0[:, [0]] = np.zeros((self.m,1))
+                H0[:, 1:] = H[:, :-1]
 
-                loss = self.compute_loss(P,Y) 
+                loss = self.compute_loss(P,Y)
                 if smooth_loss == 0:
                     smooth_loss = loss
                 else:
@@ -217,29 +231,30 @@ class RNN:
                 # m_param += g*g
                 # update_param(m, grad, lr)
                 self.m_U += self.grad_U * self.grad_U 
-                self.U -= self.update_param(m_U, self.grad_U, lr)
+                self.U -= self.update_param(self.m_U, self.grad_U, lr)
 
                 self.m_W += self.grad_W * self.grad_W
-                self.W -= self.update_param(m_W, self.grad_W, lr)
+                self.W -= self.update_param(self.m_W, self.grad_W, lr)
 
                 self.m_V += self.grad_V * self.grad_V
-                self.V -= self.update_param(m_V, self.grad_V, lr)
+                self.V -= self.update_param(self.m_V, self.grad_V, lr)
 
                 self.m_b += self.grad_b * self.grad_b
-                self.b -= self.update_param(m_b, self.grad_b, lr)
+                self.b -= self.update_param(self.m_b, self.grad_b, lr)
 
                 self.m_c += self.grad_c * self.grad_c
-                self.c -= self.update_param(m_c, self.grad_c, lr)
+                self.c -= self.update_param(self.m_c, self.grad_c, lr)
 
-                hprev = H1[:, -1]
-                hprev = H1[:,-1].reshape(self.m,1)
+                hprev = H[:, -1]
+                hprev = H[:,-1].reshape(self.m,1)
 
-                # save best model TODO
-                
-                # save and print loss info 
+                # save and print loss info, and check best model
                 if it % print_loss == 0:
-                    losses.append(smooth_loss)
-                    print("Iteration {}, s.loss {}".format(it, smooth_loss)
+                    losses.append(smooth_loss[0][0])
+                    print("Iteration {}, s.loss {}".format(it, smooth_loss))
+                    if smooth_loss < best_loss:
+                        best_loss = smooth_loss
+                        best_model = self.weigths_dict()
 
                 # print generation
                 if it % print_generate == 0:
@@ -252,21 +267,34 @@ class RNN:
                     for j in range(Y_gen.shape[1]):
                         y = Y_gen[:,j].reshape(self.K,1)
                         gen_sentence += self.onehot_to_char(y.T)
-                    print(gen_sentence)
+                    s = "Iteration {}: {}".format(it, gen_sentence)
+                    print(s)
+                    if logging:
+                        write_log(s)
 
                 it += 1
+                #if it >= 10000:
+                #    break
                 e += self.seq_max_length
 
-        # TODO what to return?
-        return costs_train, costs_val
+        return losses,best_loss[0][0], best_model
 
 # ------- END CLASS
+
+def write_log(line):
+    filename = 'logs.txt'
+    with open(filename, 'a') as f:
+        f.write(line + "\n")
 
 def main():
     np.random.seed(400)
     filename = "goblet_book.txt"
-    book_data, char2idx, idx2char, K = get_data(filename)
-    print("char2idx: ", char2idx)
+    book_data, char2idx, idx2char = get_data(filename)
+    K = len(char2idx.keys())
+    #print("char2idx: ", char2idx)
+    print("idx2char: ", idx2char)
+    print("Number of datapoints: ", len(book_data))
+    print("Number of chars: ", K)
 
     print("Initialising model...")
     m = 100
@@ -274,18 +302,45 @@ def main():
     net = RNN(m, K, char2idx, idx2char,seq_max_length)
 
     lr = 0.1
-    epochs = 2
+    epochs = 1
+    #epochs = 2
 
-    """
     print("Training beginning...")
-    net.train(
-        data = book_data
-        lr = lr
-        epochs = epochs
+    losses, best_loss, best_weights = net.training(
+        book_data = book_data,
+        lr = lr,
+        epochs = epochs,
+        print_loss = 100,
+        print_generate = 10000, 
+        #print_loss = 100,
+        #print_generate = 500,
+        logging = True
     )
-    """
+    print("DONE!!!")
+    print("Best loss: ", best_loss)
 
-    # TODO generate 1000 character from best model
+    # load best model and generate 
+    net.load_weigths(best_weights)
+      
+    # generate with best model
+    n_generate = 1000 
+    gen_sentence = ""
+    x0 = net.char_to_onehot('.').T
+    h0 = np.zeros((net.m,1))
+    Y_gen = net.generate(x0, h0, n_generate)
+
+    for j in range(Y_gen.shape[1]):
+        y = Y_gen[:,j].reshape(net.K,1)
+        gen_sentence += net.onehot_to_char(y.T)
+    print("SENTENCE 1000 CHARS:\n\n ", gen_sentence)
+
+    # plot the loss
+    fig = plt.figure()
+    ax = fig.add_subplot()
+    ax.set_xlabel('iterations / 100')
+    ax.set_ylabel('loss')
+    ax.plot(losses)
+    plt.show()
     
 if __name__ == "__main__":
     main()
