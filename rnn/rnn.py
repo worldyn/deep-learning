@@ -273,7 +273,7 @@ class RNN:
 
                 # save and print loss info, and check best model
                 if it % print_loss == 0:
-                    losses.append(smooth_loss[0][0])
+                    losses.append(smooth_loss)
                     print("Epoch {}, Iteration {}, s.loss {}".format(epoch, it, smooth_loss))
                     if smooth_loss < best_loss:
                         best_loss = smooth_loss
