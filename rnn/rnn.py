@@ -337,7 +337,7 @@ def main():
         print_generate = 10000, 
         #print_loss = 100,
         #print_generate = 500,
-        logging = False 
+        logging = True 
     )
     print("DONE!!!")
     print("Best loss: ", best_loss)
