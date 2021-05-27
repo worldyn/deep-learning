@@ -141,7 +141,7 @@ class RNN:
             y_t = Y[:,i].reshape(self.K,1) # char onehot label at time t
             l_t = -np.log(np.dot(y_t.T,p_t)) # cross entropy loss
             loss += l_t
-        return loss
+        return loss[0][0] # TODO fix dims
     
     def generate(self, x0, h0, N):
         # x0: init char one-hot (K,1)
@@ -171,7 +171,30 @@ class RNN:
         return Y
 
     def compute_gradients(self, P, X, Y, H, H0, A):
-        pass
+        # grad w.r.t loss
+        dLdout = -(Y.T - P.T).T
+        # V and c
+        self.grad_V = dLdout @ H.T
+        #axis = 2
+        self.grad_c = np.sum(dLdout, axis=1, keepdims=True)
+        # w.r.t h and a (for each time step)
+        T = X.shape[1]
+        dLdH = np.zeros((T, self.m))
+        dLdH[-1] = dLdout.T[-1] @ self.V # w.r.t last hidden state
+        dLdA = np.zeros((self.m, T)) 
+        # w.r.t last activation grad
+        dLdA[:,-1] =  dLdH[-1].T @ np.diag( 1 - np.power(tanh(A[:,-1]),2) ) 
+        # recursively compute the rest for hiddens and activations
+        for t in range(T - 2, -1, -1):
+            dLdH[t] = dLdout.T[t] @ self.V + dLdA[:,t+1] @ self.W
+            dLdA[:,t] =  dLdH[t].T @ np.diag( 1 - np.power(tanh(A[:,t]),2) ) 
+
+        # w.r.t W
+        self.grad_W = dLdA @ H0.T
+        # lastly w.r.t U and b
+        self.grad_U = dLdA @ X.T
+        self.grad_b = np.sum(dLdA, axis=1, keepdims=True)
+        # end grads
 
     def update_param(self, m, grad, lr):
         # updates with adagrad
@@ -251,7 +274,7 @@ class RNN:
                 # save and print loss info, and check best model
                 if it % print_loss == 0:
                     losses.append(smooth_loss[0][0])
-                    print("Iteration {}, s.loss {}".format(it, smooth_loss))
+                    print("Epoch {}, Iteration {}, s.loss {}".format(epoch, it, smooth_loss))
                     if smooth_loss < best_loss:
                         best_loss = smooth_loss
                         best_model = self.weigths_dict()
@@ -267,7 +290,7 @@ class RNN:
                     for j in range(Y_gen.shape[1]):
                         y = Y_gen[:,j].reshape(self.K,1)
                         gen_sentence += self.onehot_to_char(y.T)
-                    s = "Iteration {}: {}".format(it, gen_sentence)
+                    s = "Epoch {}, Iteration {}, loss {}:\n {}".format(epoch, it, smooth_loss, gen_sentence)
                     print(s)
                     if logging:
                         write_log(s)
