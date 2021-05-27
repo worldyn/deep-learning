@@ -300,7 +300,7 @@ class RNN:
                 #    break
                 e += self.seq_max_length
 
-        return losses,best_loss[0][0], best_model
+        return losses,best_loss, best_model
 
 # ------- END CLASS
 
@@ -325,7 +325,7 @@ def main():
     net = RNN(m, K, char2idx, idx2char,seq_max_length)
 
     lr = 0.1
-    epochs = 1
+    epochs = 4
     #epochs = 2
 
     print("Training beginning...")
@@ -337,7 +337,7 @@ def main():
         print_generate = 10000, 
         #print_loss = 100,
         #print_generate = 500,
-        logging = True
+        logging = False 
     )
     print("DONE!!!")
     print("Best loss: ", best_loss)
