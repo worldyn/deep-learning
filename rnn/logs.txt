@@ -1,0 +1,37 @@
+
+Epoch 0, Iteration 0, loss 106.91724974367165: 
+iV20s-fHDELX!)'62?K 6WUUR9JR7-3IQEyKN!IDM"PCAnddF"!z-tHcLQogP;67S?Be?pjz7cW?NM4hWRxWKGH(bLM3YZAvYAW.OBYR(hXIEl:MX,UI1CUUnhvGfEYJmNAB7TVafR4yKv-TbyyPS;cIAg'oa4(70bG)Bh,N1y'og4ew?NM?jorTmz;9SyGvZ7VXn6ou
+
+Epoch 0, Iteration 0, loss 109.2343339341666: 
+g.7Ki3ZNBcDwCKVIPno'_R"!H/MKkQOAD	Fi::YV'-I1}?bJxplNZR'htJ'Aqt9DNS"FK7•Tpz)Yv1hEXW?JB2e^vLSazPwL6q1•LEt)Am!,bCNO-UC0ü!sF!/üFsCIkv_H NünfH,RgLu}wD,"Z1Zkx"pXp10mF)Np	Ryk2S,W ZzfS_RfP9j(w nmtL aQ..yxD!9R
+
+Epoch 0, Iteration 10000, loss 54.89536618139997: 
+ ..e   e,.'  e tsi., ..s. .. .i.we...s .o  ,.y .s .,s. .ly.,yt...,s..t .  ..e,ety bt. ,.t,tsth. e   le  ,.s  . e  .u. ,.',. e.tm.y.u...s,. .,.. ,...le A  .    "ee,yy b  ... ,.,.t  ...i,. , . e.s.y' t.
+
+Epoch 0, Iteration 20000, loss 51.30978073722608: 
+sttnnnlkunpontrtotntntnnrtontonwntpenttrntisnntnnntnttuekmotnwetotntnnnntnnnnlnflnnasnlttttntnnttntnnntoitlttnsntnntnslntttttnclnnontngannnttmnnnnkwsnnntntlnnentnttnnlnntntntntntntrn.onnsrsnnlnnntnnfn
+
+Epoch 0, Iteration 30000, loss 49.55438091534574: 
+ l     - .    is  s          s    l        ,       s        , l,              ,,    .     ,      , ls  ,  -       s    r  , l.n r,   es       , .  ,        l l     a n     ; ?  s                     d
+
+Epoch 0, Iteration 40000, loss 48.15771915901792: 
+rn g,ntdt tssteeemm getree   tseet.gteetrtrsgtese gse,Isinsm ekmiee etie,,  nttrtgedst r tn,e e  r!d.,et i.m.!et mn neecgs e  esin,decee,teecnsn o,mestedt..s gt   g  s  t eens,gttt  te.tnepoge .ed wed
+
+Epoch 1, Iteration 50000, loss 49.25377226456538: 
+iieeoeeoieiaoraeoieaaeeoeeoeuoaeeeeoyeoeaaooeiieeeaioaoeoooeioaaaaoeoeuyioooeeooeoereioooeeioeeoeeoieeooeieeoooooaaoeoieieioeooeiaiteiiiooooooeacoaaioeeaoeoyoeeeiooioeeoeeaieuiooaeoooiieoeeeaooeoeooai
+
+Epoch 1, Iteration 60000, loss 47.95607390486501: 
+stntutetohcwtiiHshuhttwostteasbpRdwwtnhamcoohloilohosrmwiowobhHgioagtasfiabdcdwwcriADsjtbsduaatttbtcsaswoaavtttahaissacwwattsfotwwtrsrdtsoswabwofiyttdfyaahehurhttmowscbttHweaiSRfbnhtoaaoahtatHbbartdHb
+
+Epoch 1, Iteration 70000, loss 47.658038324080046: 
+ayyyyyeyyeiiyyeoeaayyyiyi i eiiiiiyylyioilylyiya ioi,i iyiy,yyeaeyuiya yuiaplioiyeiiiiay,eeae,eyyiyiyy iilyiyieiyeaelaiiyyyyiyiyyielyoiiyyiiayly iiiiliyyiiiseyiy ypuyaieiiiiiiyiysoeeyiyyyyyyyies.sy.ai
+
+Epoch 1, Iteration 80000, loss 46.2939320180666: 
+mnnntstntnnnnnwntnstnffnnnnnnsntntntntntnnnnnnnntssfnnnnlttnnttntnnntwftcnltnttnnnnsttnnnstnntnntnstnnnnntntnnfnnmtnnnfnntnnnttnnvnsnnnnntneftnmnnsnntttnsnnnnnnnnnnntntnnnmsnfsnsnnnnnennnmtnnnnnnnnftt
+
+Epoch 2, Iteration 90000, loss 47.504076178259176: 
+ ttttt ttt ttttt t tt  ttttttiitttttt ttttit t t tttttttttttit  tttttttttttttt sttttttt t ttettttttttt ttitttttottttttttsttttttttntttttttttttt  ttt tt tettt ttttttttt t ttsttttttn.tt ttttttttttttttttt
+
+Epoch 2, Iteration 100000, loss 47.97517308934161: 
+, .. eee  o . ae a.s.o o  te  ,   i pei'ei.e s o .ai e  im,    i e" .et i?sei, u.    see  t. !ie.su io 'e e . '    s.eis e  eo o.ae  eeo,oet'e,     e ,e  ,u l ate  , , b,  eut   e.e,u ,ie!t iie e     
+

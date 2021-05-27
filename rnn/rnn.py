@@ -34,8 +34,10 @@ def get_data(filename):
     idx2char = {}
     idx = 0
     print("Constructing c2i and i2c...")
+    #forbiddens = ['\t', 'ü','{','}','_','/','^','•','\\']
+    forbiddens = []
     for c in book_data:
-        if c not in char2idx.keys():
+        if c not in char2idx.keys() and c not in forbiddens:
             char2idx[c] = idx
             idx2char[idx] = c
             idx += 1
@@ -194,7 +196,25 @@ class RNN:
         # lastly w.r.t U and b
         self.grad_U = dLdA @ X.T
         self.grad_b = np.sum(dLdA, axis=1, keepdims=True)
-        # end grads
+
+        # clipping ranges
+        clipmax = 5
+        clipmin = -5
+        # V
+        self.grad_V = np.where(self.grad_V<clipmax, self.grad_V,clipmax)
+        self.grad_V = np.where(self.grad_V>clipmin, self.grad_V,clipmin) 
+        # bias C
+        self.grad_c = np.where(self.grad_c<clipmax, self.grad_c,clipmax)
+        self.grad_c = np.where(self.grad_c>clipmin, self.grad_c,clipmin)
+        # W
+        self.grad_W = np.where(self.grad_W<clipmax, self.grad_W,clipmax)
+        self.grad_W = np.where(self.grad_W>clipmin, self.grad_W,clipmin)
+        # U
+        self.grad_U = np.where(self.grad_U<clipmax, self.grad_U,clipmax)
+        self.grad_U = np.where(self.grad_U>clipmin, self.grad_U,clipmin)
+        # bias b
+        self.grad_b = np.where(self.grad_b<clipmax, self.grad_b, clipmax)
+        self.grad_b = np.where(self.grad_b>clipmin, self.grad_b,clipmin)
 
     def update_param(self, m, grad, lr):
         # updates with adagrad
@@ -290,7 +310,7 @@ class RNN:
                     for j in range(Y_gen.shape[1]):
                         y = Y_gen[:,j].reshape(self.K,1)
                         gen_sentence += self.onehot_to_char(y.T)
-                    s = "Epoch {}, Iteration {}, loss {}:\n {}".format(epoch, it, smooth_loss, gen_sentence)
+                    s = "Epoch {}, Iteration {}, loss {}: \n{}\n".format(epoch, it, smooth_loss, gen_sentence)
                     print(s)
                     if logging:
                         write_log(s)
@@ -304,8 +324,7 @@ class RNN:
 
 # ------- END CLASS
 
-def write_log(line):
-    filename = 'logs.txt'
+def write_log(line, filename='logs.txt'):
     with open(filename, 'a') as f:
         f.write(line + "\n")
 
@@ -334,11 +353,15 @@ def main():
         lr = lr,
         epochs = epochs,
         print_loss = 100,
-        print_generate = 10000, 
+        #print_generate = 10000, 
+        print_generate = 5000, 
         #print_loss = 100,
         #print_generate = 500,
-        logging = True 
+        logging = False 
     )
+    # save best weights
+    write_log(str(best_weights), filename='model.txt')
+
     print("DONE!!!")
     print("Best loss: ", best_loss)
 
